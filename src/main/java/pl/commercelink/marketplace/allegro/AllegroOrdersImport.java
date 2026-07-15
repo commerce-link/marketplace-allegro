@@ -132,17 +132,31 @@ class AllegroOrdersImport {
                 buyer.email(),
                 buyer.phoneNumber(),
                 null,
-                shippingAddress,
+                individualBillingAddress(form, buyer),
                 shippingAddress);
+    }
+
+    private MarketplaceCustomer.Address individualBillingAddress(AllegroCheckoutForm form, AllegroCheckoutForm.Buyer buyer) {
+        AllegroCheckoutForm.InvoiceAddress invoiceAddress = form.invoice() != null ? form.invoice().address() : null;
+        AllegroCheckoutForm.NaturalPerson person = invoiceAddress != null ? invoiceAddress.naturalPerson() : null;
+        if (person != null) {
+            String personName = joinName(person.firstName(), person.lastName());
+            return new MarketplaceCustomer.Address(
+                    personName != null ? personName : buyerName(buyer),
+                    buyer.phoneNumber(),
+                    invoiceAddress.street(),
+                    invoiceAddress.zipCode(),
+                    invoiceAddress.city(),
+                    invoiceAddress.countryCode());
+        }
+        return toPlainDeliveryAddress(form.delivery().address());
     }
 
     private MarketplaceCustomer.Address toShippingAddress(AllegroCheckoutForm.Delivery delivery) {
         AllegroCheckoutForm.DeliveryAddress address = delivery.address();
         AllegroCheckoutForm.PickupPoint pickupPoint = delivery.pickupPoint();
         if (pickupPoint == null) {
-            return new MarketplaceCustomer.Address(
-                    joinName(address.firstName(), address.lastName()), address.phoneNumber(),
-                    address.street(), address.zipCode(), address.city(), address.countryCode());
+            return toPlainDeliveryAddress(address);
         }
         AllegroCheckoutForm.PickupPointAddress pointAddress = pickupPoint.address();
         return new MarketplaceCustomer.Address(
@@ -153,6 +167,12 @@ class AllegroOrdersImport {
                 pointAddress != null && pointAddress.city() != null ? pointAddress.city() : address.city(),
                 address.countryCode(),
                 new MarketplaceCustomer.PickupPoint(pickupPoint.id(), pickupPoint.name()));
+    }
+
+    private MarketplaceCustomer.Address toPlainDeliveryAddress(AllegroCheckoutForm.DeliveryAddress address) {
+        return new MarketplaceCustomer.Address(
+                joinName(address.firstName(), address.lastName()), address.phoneNumber(),
+                address.street(), address.zipCode(), address.city(), address.countryCode());
     }
 
     private static String joinName(String firstName, String lastName) {

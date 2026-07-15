@@ -204,6 +204,157 @@ class AllegroOrdersImportTest {
     }
 
     @Test
+    void individualBillingAddressIsHomeAddressNotPickupPoint() {
+        // given: pickup-point order (delivery.address = home, delivery.pickupPoint set), no invoice
+        AllegroCheckoutForm pickup = new AllegroCheckoutForm("o-13", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-13", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                new AllegroCheckoutForm.Delivery(
+                        new AllegroCheckoutForm.DeliveryAddress("Jan", "Kowalski", null, "Domowa 5",
+                                "Warszawa", "00-002", "PL", "+48123123123"),
+                        paidForm("x").delivery().cost(),
+                        new AllegroCheckoutForm.PickupPoint("ALP123", "Paczkomat ALP123",
+                                new AllegroCheckoutForm.PickupPointAddress("Prosta 1", "00-001", "Warszawa"))),
+                new AllegroCheckoutForm.Invoice(false, null),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(pickup), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        MarketplaceCustomer customer = orders.get(0).customer();
+        assertEquals("Domowa 5", customer.billingAddress().street());
+        assertNull(customer.billingAddress().pickupPoint());
+        assertEquals("Prosta 1", customer.shippingAddress().street());
+    }
+
+    @Test
+    void individualInvoiceWithNaturalPersonBecomesBillingAddress() {
+        // given: invoice.required=true, invoice.address {street/zip/city/country, naturalPerson{firstName,lastName}}, no company
+        AllegroCheckoutForm form = new AllegroCheckoutForm("o-14", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-14", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(),
+                new AllegroCheckoutForm.Invoice(true, new AllegroCheckoutForm.InvoiceAddress(
+                        "Fakturowa 3", "Kraków", "30-002", "PL",
+                        null, new AllegroCheckoutForm.NaturalPerson("Jan", "Iksinski"))),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(form), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        MarketplaceOrder order = ordersImport.fetchOrders().get(0);
+
+        // then
+        MarketplaceCustomer customer = order.customer();
+        assertEquals(MarketplaceCustomer.CustomerType.INDIVIDUAL, customer.customerType());
+        assertEquals("Fakturowa 3", customer.billingAddress().street());
+        assertEquals("30-002", customer.billingAddress().postalCode());
+        assertEquals("Kraków", customer.billingAddress().city());
+        assertEquals("Jan Iksinski", customer.billingAddress().name());
+    }
+
+    @Test
+    void pickupPointWithoutOwnAddressFallsBackToDeliveryAddressFields() {
+        // given: delivery.pickupPoint {id,name, address:null}
+        AllegroCheckoutForm pickup = new AllegroCheckoutForm("o-15", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-15", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                new AllegroCheckoutForm.Delivery(
+                        paidForm("x").delivery().address(),
+                        paidForm("x").delivery().cost(),
+                        new AllegroCheckoutForm.PickupPoint("ALP999", "Paczkomat ALP999", null)),
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(pickup), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        MarketplaceCustomer.Address shipping = orders.get(0).customer().shippingAddress();
+        assertEquals("Prosta 1", shipping.street());
+        assertEquals("00-001", shipping.postalCode());
+        assertEquals("Warszawa", shipping.city());
+        assertEquals("ALP999", shipping.pickupPoint().id());
+    }
+
+    @Test
+    void skipsFormWithMissingCost() {
+        // given: delivery present, cost null -> skipped, valid sibling imported
+        AllegroCheckoutForm missingCost = new AllegroCheckoutForm("o-16", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-16", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                new AllegroCheckoutForm.Delivery(paidForm("x").delivery().address(), null, null),
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(missingCost, paidForm("o-1")), 2, 2));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals(1, orders.size());
+        assertEquals("o-1", orders.get(0).externalOrderId());
+    }
+
+    @Test
+    void skipsFormWithMissingAddress() {
+        // given: delivery present, address null -> skipped
+        AllegroCheckoutForm missingAddress = new AllegroCheckoutForm("o-17", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-17", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                new AllegroCheckoutForm.Delivery(null, paidForm("x").delivery().cost(), null),
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(missingAddress, paidForm("o-1")), 2, 2));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals(1, orders.size());
+        assertEquals("o-1", orders.get(0).externalOrderId());
+    }
+
+    @Test
+    void skipsFormWithEmptyLineItems() {
+        // given: lineItems [] -> skipped
+        AllegroCheckoutForm emptyLineItems = new AllegroCheckoutForm("o-18", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-18", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(),
+                paidForm("x").invoice(),
+                List.of());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(emptyLineItems, paidForm("o-1")), 2, 2));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals(1, orders.size());
+        assertEquals("o-1", orders.get(0).externalOrderId());
+    }
+
+    @Test
     void skipsFormWithMissingDeliveryInsteadOfFailingWholeImport() {
         // given
         AllegroCheckoutForm missingDelivery = new AllegroCheckoutForm("o-7", "READY_FOR_PROCESSING",
