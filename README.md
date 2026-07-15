@@ -1,7 +1,7 @@
 # marketplace-allegro
 
 Integracja CommerceLink z marketplace Allegro. Implementuje `MarketplaceProvider`
-(`marketplace-api:0.2.1`), odkrywana przez SPI. Zakres: import wyłącznie opłaconych
+(`marketplace-api:0.2.2`), odkrywana przez SPI. Zakres: import wyłącznie opłaconych
 zamówień + cykl życia (accept/ship/cancel). Eksport ofert i faktury — etap 2.
 
 ## Jak działa import „tylko opłacone"
