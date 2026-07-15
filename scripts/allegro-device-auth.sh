@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CLIENT_ID=${1:?Usage: allegro-device-auth.sh <client_id> <client_secret>}
-CLIENT_SECRET=${2:?Usage: allegro-device-auth.sh <client_id> <client_secret>}
+CLIENT_ID=${1:?Usage: allegro-device-auth.sh <client_id> [client_secret]}
+CLIENT_SECRET=${2:-${ALLEGRO_CLIENT_SECRET:?Usage: allegro-device-auth.sh <client_id> <client_secret> (or set ALLEGRO_CLIENT_SECRET)}}
 OAUTH_BASE=${ALLEGRO_OAUTH_BASE:-https://allegro.pl.allegrosandbox.pl/auth/oauth}
 
 RESPONSE=$(curl -s -u "$CLIENT_ID:$CLIENT_SECRET" \
@@ -26,7 +26,8 @@ while true; do
     fi
     ERROR=$(echo "$TOKEN" | jq -r '.error // empty')
     case "$ERROR" in
-        authorization_pending|slow_down) continue ;;
+        authorization_pending) continue ;;
+        slow_down) INTERVAL=$((INTERVAL + 5)); continue ;;
         *) echo "$TOKEN"; exit 1 ;;
     esac
 done

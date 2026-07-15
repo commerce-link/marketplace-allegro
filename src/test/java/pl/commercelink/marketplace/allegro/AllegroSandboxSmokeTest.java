@@ -57,7 +57,12 @@ class AllegroSandboxSmokeTest {
                 .send(request, HttpResponse.BodyHandlers.ofString());
         String body = response.body();
         String marker = "\"access_token\":\"";
-        int start = body.indexOf(marker) + marker.length();
+        int start = body.indexOf(marker);
+        if (response.statusCode() != 200 || start == -1) {
+            throw new IllegalStateException(
+                    "Token refresh failed (HTTP " + response.statusCode() + "): " + body);
+        }
+        start += marker.length();
         return body.substring(start, body.indexOf('"', start));
     }
 }

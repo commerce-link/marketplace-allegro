@@ -27,6 +27,8 @@ Zamówienia za pobraniem (CASH_ON_DELIVERY) są importowane — płatność przy
 2. Zarejestruj aplikację na https://apps.developer.allegro.pl.allegrosandbox.pl
    (device flow, scope orders read+write) — osobne credentiale niż produkcja.
 3. Refresh token sprzedawcy: `./scripts/allegro-device-auth.sh <clientId> <clientSecret>`.
+   Sekret klienta można też podać przez zmienną środowiskową `ALLEGRO_CLIENT_SECRET`
+   (skrypt użyje jej jako fallbacku dla `$2`), żeby nie trafiał do historii shella czy `ps`.
 4. Wystaw ofertę jako sprzedawca (UI sandboxa), kup ją jako kupujący i OPŁAĆ w symulatorze
    płatności (payments-simulator.allegrosandbox.pl — wybierz płatność zakończoną sukcesem).
    Zamówienie przejdzie w READY_FOR_PROCESSING.
