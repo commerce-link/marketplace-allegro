@@ -53,7 +53,8 @@ public class AllegroMarketplaceProviderDescriptor implements MarketplaceProvider
                 tokenUrl,
                 90L * 24 * 60 * 60,
                 ACCEPT_HEADER,
-                "refreshToken");
+                "refreshToken",
+                ACCEPT_HEADER);
     }
 
     private static String resolve(String key, String defaultValue) {

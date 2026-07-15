@@ -77,6 +77,7 @@ class AllegroMarketplaceProviderDescriptorTest {
         assertEquals(90L * 24 * 60 * 60, authConfig.refreshTokenExpirationSeconds());
         assertEquals("application/vnd.allegro.public.v1+json", authConfig.acceptHeader());
         assertEquals("refreshToken", authConfig.refreshTokenFieldKey());
+        assertEquals(AllegroMarketplaceProviderDescriptor.ACCEPT_HEADER, authConfig.contentTypeHeader());
     }
 
     @Test
