@@ -6,7 +6,6 @@ import pl.commercelink.marketplace.api.MarketplaceProvider;
 import pl.commercelink.marketplace.api.MarketplaceProviderDescriptor;
 import pl.commercelink.provider.api.AuthConfig;
 import pl.commercelink.provider.api.ProviderField;
-import pl.commercelink.rest.client.RestApi;
 import pl.commercelink.rest.client.RestApiWithRetry;
 
 import java.util.List;
@@ -14,6 +13,7 @@ import java.util.Map;
 import java.util.ServiceLoader;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 class AllegroMarketplaceProviderDescriptorTest {
 
@@ -108,13 +108,25 @@ class AllegroMarketplaceProviderDescriptorTest {
     void createBuildsProviderFromContextRestApi() {
         // given
         AllegroMarketplaceProviderDescriptor descriptor = new AllegroMarketplaceProviderDescriptor();
-        RestApiWithRetry restApi = new RestApiWithRetry(
-                RestApi.builder("https://api.allegro.pl").build(), () -> "token");
+        RestApiWithRetry restApi = mock(RestApiWithRetry.class);
 
         // when
         MarketplaceProvider provider = descriptor.create(Map.of(), Map.of("restApi", restApi));
 
         // then
-        assertNotNull(provider);
+        assertInstanceOf(AllegroMarketplaceProvider.class, provider);
+    }
+
+    @Test
+    void createFailsFastWithoutRestApiInContext() {
+        // given
+        AllegroMarketplaceProviderDescriptor descriptor = new AllegroMarketplaceProviderDescriptor();
+
+        // when
+        NullPointerException exception = assertThrows(NullPointerException.class,
+                () -> descriptor.create(Map.of(), Map.of()));
+
+        // then
+        assertEquals("restApi missing in provider context", exception.getMessage());
     }
 }

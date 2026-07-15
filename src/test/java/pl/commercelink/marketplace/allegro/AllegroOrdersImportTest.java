@@ -262,6 +262,62 @@ class AllegroOrdersImportTest {
     }
 
     @Test
+    void stopsPaginationWhenPageIsEmptyDespiteTotalCount() {
+        // given
+        when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms"),
+                argThat(m -> m != null && "0".equals(m.get("offset"))), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(), 500, 0));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals(0, orders.size());
+        org.mockito.Mockito.verify(restApi, org.mockito.Mockito.times(1))
+                .fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class));
+    }
+
+    @Test
+    void mapsWireTransferAndExtendedTermToBankTransfer() {
+        // given
+        AllegroCheckoutForm wireTransfer = new AllegroCheckoutForm("o-10", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-10", "WIRE_TRANSFER", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(), paidForm("x").invoice(), paidForm("x").lineItems());
+        AllegroCheckoutForm extendedTerm = new AllegroCheckoutForm("o-11", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-11", "EXTENDED_TERM", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(), paidForm("x").invoice(), paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(wireTransfer, extendedTerm), 2, 2));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals("BankTransfer", orders.get(0).paymentType());
+        assertEquals("BankTransfer", orders.get(1).paymentType());
+    }
+
+    @Test
+    void filtersOutFormWithoutPayment() {
+        // given
+        AllegroCheckoutForm noPayment = new AllegroCheckoutForm("o-12", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(), null, new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(), paidForm("x").invoice(), paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(noPayment), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when / then
+        assertEquals(0, ordersImport.fetchOrders().size());
+    }
+
+    @Test
     void fetchOrdersFallsBackToOfferIdWhenExternalIdMissing() {
         // given
         AllegroCheckoutForm noSku = new AllegroCheckoutForm("o-5", "READY_FOR_PROCESSING",

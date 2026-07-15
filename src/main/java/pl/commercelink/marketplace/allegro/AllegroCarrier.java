@@ -4,15 +4,15 @@ import java.util.List;
 
 enum AllegroCarrier {
 
-    INPOST("INPOST", List.of("Paczkomat", "Paczkomaty", "InPost")),
+    INPOST("INPOST", List.of("Paczkomat")),
     DHL("DHL", List.of()),
     DPD("DPD", List.of()),
-    POCZTA_POLSKA("POCZTA_POLSKA", List.of("Poczta Polska", "Pocztex", "PocztaPolska", "Poczta")),
+    POCZTA_POLSKA("POCZTA_POLSKA", List.of("Poczta", "Pocztex")),
     UPS("UPS", List.of()),
     GLS("GLS", List.of()),
-    FEDEX("FEDEX", List.of("Fedex")),
-    DB_SCHENKER("DB_SCHENKER", List.of("Schenker", "DBSchenker", "DB Schenker")),
-    ORLEN_PACZKA("ORLEN_PACZKA", List.of("Orlen Paczka", "Orlen", "RUCH"));
+    FEDEX("FEDEX", List.of()),
+    DB_SCHENKER("DB_SCHENKER", List.of("Schenker")),
+    ORLEN_PACZKA("ORLEN_PACZKA", List.of("Orlen", "RUCH"));
 
     private final String carrierId;
     private final List<String> aliases;

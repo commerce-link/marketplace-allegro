@@ -15,6 +15,9 @@ class AllegroOrdersImport {
 
     private static final System.Logger LOGGER = System.getLogger(AllegroOrdersImport.class.getName());
     private static final int PAGE_SIZE = 100;
+    private static final String STATUS_READY_FOR_PROCESSING = "READY_FOR_PROCESSING";
+    private static final String FULFILLMENT_STATUS_NEW = "NEW";
+    private static final String PAYMENT_CASH_ON_DELIVERY = "CASH_ON_DELIVERY";
 
     private final RestApiWithRetry restApi;
 
@@ -28,8 +31,8 @@ class AllegroOrdersImport {
         AllegroCheckoutFormsResponse response;
         do {
             Map<String, String> params = new HashMap<>();
-            params.put("status", "READY_FOR_PROCESSING");
-            params.put("fulfillment.status", "NEW");
+            params.put("status", STATUS_READY_FOR_PROCESSING);
+            params.put("fulfillment.status", FULFILLMENT_STATUS_NEW);
             params.put("limit", String.valueOf(PAGE_SIZE));
             params.put("offset", String.valueOf(offset));
             response = restApi.fetchWithAuthRetry("/order/checkout-forms", params, AllegroCheckoutFormsResponse.class);
@@ -60,7 +63,7 @@ class AllegroOrdersImport {
         if (payment == null) {
             return false;
         }
-        if ("CASH_ON_DELIVERY".equals(payment.type())) {
+        if (PAYMENT_CASH_ON_DELIVERY.equals(payment.type())) {
             return true;
         }
         return payment.finishedAt() != null;
@@ -170,7 +173,7 @@ class AllegroOrdersImport {
             return "BankTransfer";
         }
         return switch (allegroPaymentType) {
-            case "CASH_ON_DELIVERY" -> "CashOnDelivery";
+            case PAYMENT_CASH_ON_DELIVERY -> "CashOnDelivery";
             case "ONLINE", "SPLIT_PAYMENT" -> "OnlinePayment";
             default -> "BankTransfer";
         };

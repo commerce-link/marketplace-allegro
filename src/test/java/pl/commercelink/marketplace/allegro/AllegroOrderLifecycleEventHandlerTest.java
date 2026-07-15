@@ -48,6 +48,26 @@ class AllegroOrderLifecycleEventHandlerTest {
     }
 
     @Test
+    void acceptOrderToleratesMissingFulfillment() {
+        // given
+        AllegroCheckoutForm formWithoutFulfillment = new AllegroCheckoutForm(
+                ORDER_ID, "READY_FOR_PROCESSING", null, null, null, null, null, List.of());
+        when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms/" + ORDER_ID), anyMap(), eq(AllegroCheckoutForm.class)))
+                .thenReturn(formWithoutFulfillment);
+        AllegroOrderLifecycleEventHandler handler = new AllegroOrderLifecycleEventHandler(restApi);
+
+        // when
+        handler.acceptOrder(ORDER_ID);
+
+        // then
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).putWithAuthRetry(eq("/order/checkout-forms/" + ORDER_ID + "/fulfillment"),
+                captor.capture(), eq(Void.class));
+        assertEquals("PROCESSING",
+                ((AllegroOrderLifecycleEventHandler.FulfillmentUpdateRequest) captor.getValue()).status());
+    }
+
+    @Test
     void acceptOrderIsNoOpWhenAlreadyProcessing() {
         // given
         when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms/" + ORDER_ID), anyMap(), eq(AllegroCheckoutForm.class)))

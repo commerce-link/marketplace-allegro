@@ -8,6 +8,7 @@ import pl.commercelink.rest.client.RestApiWithRetry;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class AllegroMarketplaceProviderDescriptor implements MarketplaceProviderDescriptor {
 
@@ -40,7 +41,8 @@ public class AllegroMarketplaceProviderDescriptor implements MarketplaceProvider
 
     @Override
     public MarketplaceProvider create(Map<String, String> configuration, Map<String, Object> context) {
-        RestApiWithRetry restApi = (RestApiWithRetry) context.get("restApi");
+        RestApiWithRetry restApi = (RestApiWithRetry) Objects.requireNonNull(
+                context.get("restApi"), "restApi missing in provider context");
         return new AllegroMarketplaceProvider(restApi);
     }
 
