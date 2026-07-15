@@ -33,6 +33,12 @@ class AllegroCarrierTest {
     }
 
     @Test
+    void orlenPaczkaCarrierIdIsOrlen() {
+        // when / then
+        assertEquals("ORLEN", AllegroCarrier.ORLEN_PACZKA.carrierId());
+    }
+
+    @Test
     void returnsNullForUnknownOrBlankCarrier() {
         // when / then
         assertNull(AllegroCarrier.fromCarrierName("Kurier XYZ"));

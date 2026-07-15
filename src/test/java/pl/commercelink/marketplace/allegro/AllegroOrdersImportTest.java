@@ -131,7 +131,7 @@ class AllegroOrdersImportTest {
                 paidForm("x").delivery(),
                 new AllegroCheckoutForm.Invoice(true, new AllegroCheckoutForm.InvoiceAddress(
                         "Biurowa 2", "Kraków", "30-001", "PL",
-                        new AllegroCheckoutForm.Company("ACME Sp. z o.o.", "6762459846"), null)),
+                        new AllegroCheckoutForm.Company("ACME Sp. z o.o.", "6762459846", null), null)),
                 paidForm("x").lineItems());
         when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
                 .thenReturn(new AllegroCheckoutFormsResponse(List.of(company), 1, 1));
@@ -145,6 +145,70 @@ class AllegroOrdersImportTest {
         assertEquals("ACME Sp. z o.o.", order.customer().company());
         assertEquals("6762459846", order.customer().taxId());
         assertEquals("Biurowa 2", order.customer().billingAddress().street());
+    }
+
+    @Test
+    void companyIdsWithPlNipTakesPrecedenceOverLegacyTaxId() {
+        // given
+        AllegroCheckoutForm company = new AllegroCheckoutForm("o-19", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-19", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(),
+                new AllegroCheckoutForm.Invoice(true, new AllegroCheckoutForm.InvoiceAddress(
+                        "Biurowa 2", "Kraków", "30-001", "PL",
+                        new AllegroCheckoutForm.Company("ACME Sp. z o.o.", null,
+                                List.of(new AllegroCheckoutForm.CompanyId("PL_NIP", "5252530705"))),
+                        null)),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(company), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when / then
+        assertEquals("5252530705", ordersImport.fetchOrders().get(0).customer().taxId());
+    }
+
+    @Test
+    void companyLegacyTaxIdIsUsedWhenNoIdsPresent() {
+        // given
+        AllegroCheckoutForm company = new AllegroCheckoutForm("o-20", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-20", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(),
+                new AllegroCheckoutForm.Invoice(true, new AllegroCheckoutForm.InvoiceAddress(
+                        "Biurowa 2", "Kraków", "30-001", "PL",
+                        new AllegroCheckoutForm.Company("ACME Sp. z o.o.", "1112223344", null), null)),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(company), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when / then
+        assertEquals("1112223344", ordersImport.fetchOrders().get(0).customer().taxId());
+    }
+
+    @Test
+    void companyFallsBackToFirstAvailableIdWhenNoPlNipOrLegacyTaxId() {
+        // given
+        AllegroCheckoutForm company = new AllegroCheckoutForm("o-21", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-21", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(),
+                new AllegroCheckoutForm.Invoice(true, new AllegroCheckoutForm.InvoiceAddress(
+                        "Biurowa 2", "Kraków", "30-001", "PL",
+                        new AllegroCheckoutForm.Company("ACME Sp. z o.o.", null,
+                                List.of(new AllegroCheckoutForm.CompanyId("VAT_EU", "DE811907980"))),
+                        null)),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(company), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when / then
+        assertEquals("DE811907980", ordersImport.fetchOrders().get(0).customer().taxId());
     }
 
     @Test

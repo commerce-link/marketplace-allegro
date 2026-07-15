@@ -12,7 +12,7 @@ enum AllegroCarrier {
     GLS("GLS", List.of()),
     FEDEX("FEDEX", List.of()),
     DB_SCHENKER("DB_SCHENKER", List.of("Schenker")),
-    ORLEN_PACZKA("ORLEN_PACZKA", List.of("Orlen", "RUCH"));
+    ORLEN_PACZKA("ORLEN", List.of("Orlen", "RUCH"));
 
     private final String carrierId;
     private final List<String> aliases;

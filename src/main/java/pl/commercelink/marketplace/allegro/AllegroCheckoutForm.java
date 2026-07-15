@@ -60,7 +60,11 @@ record AllegroCheckoutForm(
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Company(String name, String taxId) {
+    record Company(String name, String taxId, List<CompanyId> ids) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record CompanyId(String type, String value) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

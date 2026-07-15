@@ -120,7 +120,7 @@ class AllegroOrdersImport {
                     company.name(),
                     buyer.email(),
                     buyer.phoneNumber(),
-                    company.taxId(),
+                    resolveTaxId(company),
                     billingAddress,
                     shippingAddress);
         }
@@ -178,6 +178,27 @@ class AllegroOrdersImport {
     private static String joinName(String firstName, String lastName) {
         String joined = ((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "")).trim();
         return joined.isEmpty() ? null : joined;
+    }
+
+    private static String resolveTaxId(AllegroCheckoutForm.Company company) {
+        if (company.ids() != null) {
+            for (AllegroCheckoutForm.CompanyId id : company.ids()) {
+                if ("PL_NIP".equals(id.type()) && id.value() != null) {
+                    return id.value();
+                }
+            }
+        }
+        if (company.taxId() != null) {
+            return company.taxId();
+        }
+        if (company.ids() != null) {
+            for (AllegroCheckoutForm.CompanyId id : company.ids()) {
+                if (id.value() != null) {
+                    return id.value();
+                }
+            }
+        }
+        return null;
     }
 
     private static String buyerName(AllegroCheckoutForm.Buyer buyer) {
