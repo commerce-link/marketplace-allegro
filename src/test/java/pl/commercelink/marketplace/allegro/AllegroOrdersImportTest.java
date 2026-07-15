@@ -14,6 +14,8 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -269,15 +271,18 @@ class AllegroOrdersImportTest {
         // given
         when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms"),
                 argThat(m -> m != null && "0".equals(m.get("offset"))), eq(AllegroCheckoutFormsResponse.class)))
-                .thenReturn(new AllegroCheckoutFormsResponse(List.of(), 500, 0));
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(paidForm("o-1")), 1, 500));
+        when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms"),
+                argThat(m -> m != null && "1".equals(m.get("offset"))), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(), 0, 500));
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
         List<MarketplaceOrder> orders = ordersImport.fetchOrders();
 
         // then
-        assertEquals(0, orders.size());
-        org.mockito.Mockito.verify(restApi, org.mockito.Mockito.times(1))
+        assertEquals(1, orders.size());
+        verify(restApi, times(2))
                 .fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class));
     }
 
