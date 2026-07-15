@@ -81,16 +81,9 @@ class AllegroOrdersImport {
 
     private MarketplaceCustomer toMarketplaceCustomer(AllegroCheckoutForm form) {
         AllegroCheckoutForm.Buyer buyer = form.buyer();
-        AllegroCheckoutForm.DeliveryAddress deliveryAddress = form.delivery().address();
         String buyerName = buyer.firstName() + " " + buyer.lastName();
 
-        MarketplaceCustomer.Address shippingAddress = new MarketplaceCustomer.Address(
-                deliveryAddress.firstName() + " " + deliveryAddress.lastName(),
-                deliveryAddress.phoneNumber(),
-                deliveryAddress.street(),
-                deliveryAddress.zipCode(),
-                deliveryAddress.city(),
-                deliveryAddress.countryCode());
+        MarketplaceCustomer.Address shippingAddress = toShippingAddress(form.delivery());
 
         AllegroCheckoutForm.Company company = form.invoice() != null && form.invoice().address() != null
                 ? form.invoice().address().company()
@@ -125,6 +118,25 @@ class AllegroOrdersImport {
                 null,
                 shippingAddress,
                 shippingAddress);
+    }
+
+    private MarketplaceCustomer.Address toShippingAddress(AllegroCheckoutForm.Delivery delivery) {
+        AllegroCheckoutForm.DeliveryAddress address = delivery.address();
+        AllegroCheckoutForm.PickupPoint pickupPoint = delivery.pickupPoint();
+        if (pickupPoint == null) {
+            return new MarketplaceCustomer.Address(
+                    address.firstName() + " " + address.lastName(), address.phoneNumber(),
+                    address.street(), address.zipCode(), address.city(), address.countryCode());
+        }
+        AllegroCheckoutForm.PickupPointAddress pointAddress = pickupPoint.address();
+        return new MarketplaceCustomer.Address(
+                address.firstName() + " " + address.lastName(),
+                address.phoneNumber(),
+                pickupPoint.id() + " — " + pickupPoint.name()
+                        + (pointAddress != null && pointAddress.street() != null ? ", " + pointAddress.street() : ""),
+                pointAddress != null ? pointAddress.zipCode() : address.zipCode(),
+                pointAddress != null ? pointAddress.city() : address.city(),
+                address.countryCode());
     }
 
     private String resolvePaymentType(String allegroPaymentType) {

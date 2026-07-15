@@ -29,7 +29,15 @@ record AllegroCheckoutForm(
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Delivery(DeliveryAddress address, Cost cost) {
+    record Delivery(DeliveryAddress address, Cost cost, PickupPoint pickupPoint) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record PickupPoint(String id, String name, PickupPointAddress address) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record PickupPointAddress(String street, String zipCode, String city) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

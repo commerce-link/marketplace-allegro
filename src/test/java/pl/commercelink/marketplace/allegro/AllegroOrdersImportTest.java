@@ -32,7 +32,8 @@ class AllegroOrdersImportTest {
                 new AllegroCheckoutForm.Delivery(
                         new AllegroCheckoutForm.DeliveryAddress("Jan", "Kowalski", null, "Prosta 1",
                                 "Warszawa", "00-001", "PL", "+48123123123"),
-                        new AllegroCheckoutForm.Cost("15.99", "PLN")),
+                        new AllegroCheckoutForm.Cost("15.99", "PLN"),
+                        null),
                 new AllegroCheckoutForm.Invoice(false, null),
                 List.of(new AllegroCheckoutForm.LineItem(
                         new AllegroCheckoutForm.Offer("offer-1", "Laptop X", new AllegroCheckoutForm.External("SKU-1")),
@@ -167,6 +168,34 @@ class AllegroOrdersImportTest {
         assertEquals("pay-1", order.paymentTransactionId());
         assertEquals(MarketplaceCustomer.CustomerType.INDIVIDUAL, order.customer().customerType());
         assertEquals("Jan Kowalski", order.customer().name());
+    }
+
+    @Test
+    void mapsPickupPointDeliveryIntoShippingAddress() {
+        // given
+        AllegroCheckoutForm pickup = new AllegroCheckoutForm("o-6", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-6", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                new AllegroCheckoutForm.Delivery(
+                        paidForm("x").delivery().address(),
+                        paidForm("x").delivery().cost(),
+                        new AllegroCheckoutForm.PickupPoint("ALP123", "Paczkomat ALP123",
+                                new AllegroCheckoutForm.PickupPointAddress("Prosta 1", "00-001", "Warszawa"))),
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(pickup), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        MarketplaceCustomer.Address shipping = orders.get(0).customer().shippingAddress();
+        assertEquals("ALP123 — Paczkomat ALP123, Prosta 1", shipping.street());
+        assertEquals("00-001", shipping.postalCode());
+        assertEquals("Warszawa", shipping.city());
     }
 
     @Test
