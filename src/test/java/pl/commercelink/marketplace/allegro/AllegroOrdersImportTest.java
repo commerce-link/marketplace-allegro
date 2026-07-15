@@ -26,7 +26,7 @@ class AllegroOrdersImportTest {
         return new AllegroCheckoutForm(
                 id,
                 "READY_FOR_PROCESSING",
-                new AllegroCheckoutForm.Buyer("b-1", "buyer+abc@user.allegromail.pl", "buyer1", "Jan", "Kowalski", "+48123123123"),
+                new AllegroCheckoutForm.Buyer("b-1", "buyer+abc@user.allegromail.pl", "buyer1", "Jan", "Kowalski", null, "+48123123123"),
                 new AllegroCheckoutForm.Payment("pay-1", "ONLINE", "2026-07-10T10:00:00Z"),
                 new AllegroCheckoutForm.Fulfillment("NEW"),
                 new AllegroCheckoutForm.Delivery(
@@ -196,6 +196,69 @@ class AllegroOrdersImportTest {
         assertEquals("ALP123 — Paczkomat ALP123, Prosta 1", shipping.street());
         assertEquals("00-001", shipping.postalCode());
         assertEquals("Warszawa", shipping.city());
+    }
+
+    @Test
+    void skipsFormWithMissingDeliveryInsteadOfFailingWholeImport() {
+        // given
+        AllegroCheckoutForm missingDelivery = new AllegroCheckoutForm("o-7", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-7", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                null,
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(missingDelivery, paidForm("o-1")), 2, 2));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals(1, orders.size());
+        assertEquals("o-1", orders.get(0).externalOrderId());
+    }
+
+    @Test
+    void companyBuyerWithoutInvoiceGetsCompanyNameInsteadOfNullNull() {
+        // given
+        AllegroCheckoutForm.Buyer companyBuyer = new AllegroCheckoutForm.Buyer(
+                "b-2", "buyer2@user.allegromail.pl", "buyer2", null, null, "ACME Sp. z o.o.", "+48123123123");
+        AllegroCheckoutForm form = new AllegroCheckoutForm("o-8", "READY_FOR_PROCESSING",
+                companyBuyer,
+                new AllegroCheckoutForm.Payment("pay-8", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(),
+                new AllegroCheckoutForm.Invoice(false, null),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(form), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals("ACME Sp. z o.o.", orders.get(0).customer().name());
+    }
+
+    @Test
+    void mapsNullPaymentTypeToBankTransfer() {
+        // given
+        AllegroCheckoutForm form = new AllegroCheckoutForm("o-9", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-9", null, "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(),
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(form), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when / then
+        assertEquals("BankTransfer", ordersImport.fetchOrders().get(0).paymentType());
     }
 
     @Test

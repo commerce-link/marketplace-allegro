@@ -17,7 +17,8 @@ record AllegroCheckoutForm(
 ) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Buyer(String id, String email, String login, String firstName, String lastName, String phoneNumber) {
+    record Buyer(String id, String email, String login, String firstName, String lastName, String companyName,
+                 String phoneNumber) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

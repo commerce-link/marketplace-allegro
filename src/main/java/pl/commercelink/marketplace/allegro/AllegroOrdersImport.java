@@ -13,6 +13,7 @@ import java.util.Map;
 
 class AllegroOrdersImport {
 
+    private static final System.Logger LOGGER = System.getLogger(AllegroOrdersImport.class.getName());
     private static final int PAGE_SIZE = 100;
 
     private final RestApiWithRetry restApi;
@@ -38,8 +39,20 @@ class AllegroOrdersImport {
 
         return forms.stream()
                 .filter(this::isPaid)
+                .filter(this::isImportable)
                 .map(this::toMarketplaceOrder)
                 .toList();
+    }
+
+    private boolean isImportable(AllegroCheckoutForm form) {
+        boolean importable = form.delivery() != null && form.delivery().cost() != null
+                && form.delivery().address() != null
+                && form.lineItems() != null && !form.lineItems().isEmpty();
+        if (!importable) {
+            LOGGER.log(System.Logger.Level.WARNING,
+                    "Skipping Allegro checkout form {0}: incomplete delivery/lineItems data", form.id());
+        }
+        return importable;
     }
 
     private boolean isPaid(AllegroCheckoutForm form) {
@@ -81,7 +94,7 @@ class AllegroOrdersImport {
 
     private MarketplaceCustomer toMarketplaceCustomer(AllegroCheckoutForm form) {
         AllegroCheckoutForm.Buyer buyer = form.buyer();
-        String buyerName = buyer.firstName() + " " + buyer.lastName();
+        String buyerName = buyerName(buyer);
 
         MarketplaceCustomer.Address shippingAddress = toShippingAddress(form.delivery());
 
@@ -125,12 +138,12 @@ class AllegroOrdersImport {
         AllegroCheckoutForm.PickupPoint pickupPoint = delivery.pickupPoint();
         if (pickupPoint == null) {
             return new MarketplaceCustomer.Address(
-                    address.firstName() + " " + address.lastName(), address.phoneNumber(),
+                    joinName(address.firstName(), address.lastName()), address.phoneNumber(),
                     address.street(), address.zipCode(), address.city(), address.countryCode());
         }
         AllegroCheckoutForm.PickupPointAddress pointAddress = pickupPoint.address();
         return new MarketplaceCustomer.Address(
-                address.firstName() + " " + address.lastName(),
+                joinName(address.firstName(), address.lastName()),
                 address.phoneNumber(),
                 pickupPoint.id() + " — " + pickupPoint.name()
                         + (pointAddress != null && pointAddress.street() != null ? ", " + pointAddress.street() : ""),
@@ -139,7 +152,23 @@ class AllegroOrdersImport {
                 address.countryCode());
     }
 
+    private static String joinName(String firstName, String lastName) {
+        String joined = ((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "")).trim();
+        return joined.isEmpty() ? null : joined;
+    }
+
+    private static String buyerName(AllegroCheckoutForm.Buyer buyer) {
+        String personName = joinName(buyer.firstName(), buyer.lastName());
+        if (personName != null) {
+            return personName;
+        }
+        return buyer.companyName() != null ? buyer.companyName() : buyer.login();
+    }
+
     private String resolvePaymentType(String allegroPaymentType) {
+        if (allegroPaymentType == null) {
+            return "BankTransfer";
+        }
         return switch (allegroPaymentType) {
             case "CASH_ON_DELIVERY" -> "CashOnDelivery";
             case "ONLINE", "SPLIT_PAYMENT" -> "OnlinePayment";
