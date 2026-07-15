@@ -36,6 +36,11 @@ Cash-on-delivery orders (CASH_ON_DELIVERY) are imported — payment happens on d
 5. Smoke test:
    `ALLEGRO_CLIENT_ID=... ALLEGRO_CLIENT_SECRET=... ALLEGRO_REFRESH_TOKEN=... \
     mvn test -Dtest=AllegroSandboxSmokeTest -Dallegro.sandbox.smoke=true`
+
+   Note: Allegro rotates refresh tokens — the smoke test's token refresh invalidates the
+   token you exported. Run a fresh device-flow (step 3) to obtain a new refresh token before
+   pasting it into the app form in step 6; a consumed token pasted into the form will
+   immediately mark the connection as lost.
 6. E2E in the application: run the app with
    `-DALLEGRO_API_URL=https://api.allegro.pl.allegrosandbox.pl`
    `-DALLEGRO_TOKEN_URL=https://allegro.pl.allegrosandbox.pl/auth/oauth/token`,
