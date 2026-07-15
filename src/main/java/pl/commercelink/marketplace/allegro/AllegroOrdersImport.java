@@ -148,11 +148,11 @@ class AllegroOrdersImport {
         return new MarketplaceCustomer.Address(
                 joinName(address.firstName(), address.lastName()),
                 address.phoneNumber(),
-                pickupPoint.id() + " — " + pickupPoint.name()
-                        + (pointAddress != null && pointAddress.street() != null ? ", " + pointAddress.street() : ""),
-                pointAddress != null ? pointAddress.zipCode() : address.zipCode(),
-                pointAddress != null ? pointAddress.city() : address.city(),
-                address.countryCode());
+                pointAddress != null && pointAddress.street() != null ? pointAddress.street() : address.street(),
+                pointAddress != null && pointAddress.zipCode() != null ? pointAddress.zipCode() : address.zipCode(),
+                pointAddress != null && pointAddress.city() != null ? pointAddress.city() : address.city(),
+                address.countryCode(),
+                new MarketplaceCustomer.PickupPoint(pickupPoint.id(), pickupPoint.name()));
     }
 
     private static String joinName(String firstName, String lastName) {

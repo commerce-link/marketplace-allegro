@@ -168,6 +168,7 @@ class AllegroOrdersImportTest {
         assertEquals("pay-1", order.paymentTransactionId());
         assertEquals(MarketplaceCustomer.CustomerType.INDIVIDUAL, order.customer().customerType());
         assertEquals("Jan Kowalski", order.customer().name());
+        assertNull(order.customer().shippingAddress().pickupPoint());
     }
 
     @Test
@@ -193,9 +194,11 @@ class AllegroOrdersImportTest {
 
         // then
         MarketplaceCustomer.Address shipping = orders.get(0).customer().shippingAddress();
-        assertEquals("ALP123 — Paczkomat ALP123, Prosta 1", shipping.street());
+        assertEquals("Prosta 1", shipping.street());
         assertEquals("00-001", shipping.postalCode());
         assertEquals("Warszawa", shipping.city());
+        assertEquals("ALP123", shipping.pickupPoint().id());
+        assertEquals("Paczkomat ALP123", shipping.pickupPoint().name());
     }
 
     @Test
