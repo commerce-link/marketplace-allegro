@@ -144,7 +144,32 @@ class AllegroOrdersImportTest {
         assertEquals(MarketplaceCustomer.CustomerType.COMPANY, order.customer().customerType());
         assertEquals("ACME Sp. z o.o.", order.customer().company());
         assertEquals("6762459846", order.customer().taxId());
-        assertEquals("Biurowa 2", order.customer().billingAddress().street());
+        MarketplaceCustomer.Address billing = order.customer().billingAddress();
+        assertEquals("ACME Sp. z o.o.", billing.name());
+        assertEquals("+48123123123", billing.phone());
+        assertEquals("Biurowa 2", billing.street());
+        assertEquals("30-001", billing.postalCode());
+        assertEquals("Kraków", billing.city());
+        assertEquals("PL", billing.country());
+    }
+
+    @Test
+    void individualBillingAddressFullFieldsFromPlainDeliveryAddress() {
+        // given: INDIVIDUAL buyer, no invoice, no pickup point -> billing = plain delivery address
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(paidForm("o-22")), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        MarketplaceCustomer.Address billing = ordersImport.fetchOrders().get(0).customer().billingAddress();
+
+        // then
+        assertEquals("Jan Kowalski", billing.name());
+        assertEquals("+48123123123", billing.phone());
+        assertEquals("Prosta 1", billing.street());
+        assertEquals("00-001", billing.postalCode());
+        assertEquals("Warszawa", billing.city());
+        assertEquals("PL", billing.country());
     }
 
     @Test
