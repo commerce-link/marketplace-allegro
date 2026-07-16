@@ -238,9 +238,19 @@ class AllegroOrdersImportTest {
 
     @Test
     void fetchOrdersMapsProductsShippingAndPayment() {
-        // given
+        // given: buyer email/phone are DISTINCT from each other and from the delivery-address
+        // phone so a positional swap (buyer-email/phone, buyer-phone/address-phone) fails the test
+        AllegroCheckoutForm.Buyer distinctBuyer = new AllegroCheckoutForm.Buyer(
+                "b-1", "buyer+42@user.allegromail.pl", "buyer1", "Jan", "Kowalski", null, "+48555666777");
+        AllegroCheckoutForm form = new AllegroCheckoutForm("o-1", "READY_FOR_PROCESSING",
+                distinctBuyer,
+                paidForm("x").payment(),
+                paidForm("x").fulfillment(),
+                paidForm("x").delivery(),
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
         when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
-                .thenReturn(new AllegroCheckoutFormsResponse(List.of(paidForm("o-1")), 1, 1));
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(form), 1, 1));
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
@@ -259,6 +269,8 @@ class AllegroOrdersImportTest {
         assertEquals("pay-1", order.paymentTransactionId());
         assertEquals(MarketplaceCustomer.CustomerType.INDIVIDUAL, order.customer().customerType());
         assertEquals("Jan Kowalski", order.customer().name());
+        assertEquals("buyer+42@user.allegromail.pl", order.customer().email());
+        assertEquals("+48555666777", order.customer().phone());
         assertNull(order.customer().shippingAddress().pickupPoint());
     }
 
