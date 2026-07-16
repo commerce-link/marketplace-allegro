@@ -32,8 +32,21 @@ class AllegroOfferExport {
         boolean anyCreates = toPublish.stream()
                 .anyMatch(o -> !existing.containsKey(o.productId()) && o.quantity() > 0
                         && o.ean() != null && !o.ean().isBlank());
-        String shippingRatesId = anyCreates ? firstShippingRatesId() : null;
-        String responsibleProducerId = anyCreates ? firstResponsibleProducerId() : null;
+        String shippingRatesId = null;
+        String responsibleProducerId = null;
+        if (anyCreates) {
+            try {
+                shippingRatesId = firstShippingRatesId();
+                responsibleProducerId = firstResponsibleProducerId();
+            } catch (HttpClientException e) {
+                if (e.getStatusCode() >= 500) {
+                    throw e;
+                }
+                LOGGER.log(System.Logger.Level.WARNING,
+                        "Failed to fetch shipping rates / responsible producers: HTTP {0} {1}, skipping all offer creates",
+                        e.getStatusCode(), e.getResponseBody());
+            }
+        }
 
         for (MarketplaceOffer offer : toPublish) {
             AllegroOffersResponse.OfferSummary current = existing.get(offer.productId());
@@ -161,7 +174,15 @@ class AllegroOfferExport {
             response = restApi.fetchWithAuthRetry("/sale/offers", params, AllegroOffersResponse.class);
             for (AllegroOffersResponse.OfferSummary summary : response.offers()) {
                 if (summary.external() != null && summary.external().id() != null) {
-                    result.put(summary.external().id(), summary);
+                    AllegroOffersResponse.OfferSummary previous = result.get(summary.external().id());
+                    if (previous != null) {
+                        LOGGER.log(System.Logger.Level.WARNING,
+                                "Duplicate Allegro offers {0} and {1} share external.id {2}, managing the non-ended one",
+                                previous.id(), summary.id(), summary.external().id());
+                    }
+                    if (previous == null || isEnded(previous) || !isEnded(summary)) {
+                        result.put(summary.external().id(), summary);
+                    }
                 }
             }
             offset += response.offers().size();

@@ -343,6 +343,73 @@ class AllegroOfferExportTest {
     }
 
     @Test
+    void skipsAllCreatesWhenShippingRatesFetchFailsWithClientError() {
+        // given
+        stubOffersPage(summary("101", "PIM-2", "50.00", 5L, "ACTIVE"));
+        when(restApi.fetchWithAuthRetry(eq("/sale/shipping-rates"), anyMap(), eq(AllegroShippingRatesResponse.class)))
+                .thenThrow(new HttpClientException(403, "missing scope"));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(
+                offer("PIM-1", "5901234567890", 149L, 10L),
+                offer("PIM-2", "5900000000000", 60L, 5L)), List.of());
+
+        // then
+        verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
+        verify(restApi).patchWithAuthRetry(eq("/sale/product-offers/101"), any(), eq(Void.class));
+    }
+
+    @Test
+    void skipsAllCreatesWhenResponsibleProducersFetchFailsWithClientError() {
+        // given
+        stubOffersPage(summary("101", "PIM-2", "50.00", 5L, "ACTIVE"));
+        stubShippingRates();
+        when(restApi.fetchWithAuthRetry(eq("/sale/responsible-producers"), anyMap(),
+                eq(AllegroResponsibleProducersResponse.class)))
+                .thenThrow(new HttpClientException(404, "feature not available"));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(
+                offer("PIM-1", "5901234567890", 149L, 10L),
+                offer("PIM-2", "5900000000000", 60L, 5L)), List.of());
+
+        // then
+        verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
+        verify(restApi).patchWithAuthRetry(eq("/sale/product-offers/101"), any(), eq(Void.class));
+    }
+
+    @Test
+    void rethrowsServerErrorFromShippingRatesFetch() {
+        // given
+        stubOffersPage();
+        when(restApi.fetchWithAuthRetry(eq("/sale/shipping-rates"), anyMap(), eq(AllegroShippingRatesResponse.class)))
+                .thenThrow(new HttpClientException(502, "bad gateway"));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when / then
+        assertThrows(HttpClientException.class, () ->
+                export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of()));
+    }
+
+    @Test
+    void prefersActiveOfferWhenDuplicateExternalIdsInListing() {
+        // given: two listed offers share external.id, the later one is ENDED
+        stubOffersPage(
+                summary("101", "PIM-1", "100.00", 10L, "ACTIVE"),
+                summary("102", "PIM-1", "100.00", 0L, "ENDED"));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+
+        // then
+        verify(restApi).patchWithAuthRetry(eq("/sale/product-offers/101"), any(), eq(Void.class));
+        verify(restApi, never()).patchWithAuthRetry(eq("/sale/product-offers/102"), any(), eq(Void.class));
+    }
+
+    @Test
     void continuesExportWhenSingleOfferFailsWithClientError() {
         // given
         stubOffersPage();
