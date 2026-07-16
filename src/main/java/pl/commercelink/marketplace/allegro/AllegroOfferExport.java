@@ -19,6 +19,7 @@ class AllegroOfferExport {
     private static final String STATUS_ENDED = "ENDED";
     private static final String PARAM_MANUFACTURER_CODE = "224017";
     private static final String PARAM_MODEL = "237206";
+    private static final int MAX_OFFER_IMAGES = 16;
 
     private final RestApiWithRetry restApi;
 
@@ -82,7 +83,7 @@ class AllegroOfferExport {
             return;
         }
         List<String> images = product.images() == null ? List.of()
-                : product.images().stream().map(AllegroProductsResponse.Image::url).toList();
+                : product.images().stream().map(AllegroProductsResponse.Image::url).limit(MAX_OFFER_IMAGES).toList();
         if (images.isEmpty()) {
             LOGGER.log(System.Logger.Level.WARNING,
                     "Skipping Allegro offer create for {0}: catalog product {1} has no images",

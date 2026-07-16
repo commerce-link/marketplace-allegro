@@ -118,6 +118,27 @@ class AllegroOfferExportTest {
     }
 
     @Test
+    void capsForwardedImagesAtSixteen() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        stubResponsibleProducers();
+        List<String> manyImages = java.util.stream.IntStream.rangeClosed(1, 20)
+                .mapToObj(i -> "https://img/" + i + ".jpg")
+                .toList();
+        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), manyImages);
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+
+        // then
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/sale/product-offers"), captor.capture(), eq(Void.class));
+        assertEquals(16, ((AllegroOfferRequest) captor.getValue()).images().size());
+    }
+
+    @Test
     void skipsCreateWhenProductNotInCatalog() {
         // given
         stubOffersPage();
@@ -266,6 +287,20 @@ class AllegroOfferExportTest {
     void sendsNothingWhenOfferUnchanged() {
         // given
         stubOffersPage(summary("101", "PIM-1", "149.00", 10L, "ACTIVE"));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+
+        // then
+        verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
+        verify(restApi, never()).patchWithAuthRetry(anyString(), any(), any());
+    }
+
+    @Test
+    void treatsOneDecimalListingAmountAsUnchangedPrice() {
+        // given
+        stubOffersPage(summary("101", "PIM-1", "149.0", 10L, "ACTIVE"));
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
