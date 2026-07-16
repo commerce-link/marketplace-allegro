@@ -50,11 +50,28 @@ class AllegroOfferExportTest {
                         new AllegroShippingRatesResponse.ShippingRate("rate-1", "Cennik"))));
     }
 
+    private void stubResponsibleProducers() {
+        when(restApi.fetchWithAuthRetry(eq("/sale/responsible-producers"), anyMap(),
+                eq(AllegroResponsibleProducersResponse.class)))
+                .thenReturn(new AllegroResponsibleProducersResponse(List.of(
+                        new AllegroResponsibleProducersResponse.ResponsibleProducer("rp-1", "Producent"))));
+    }
+
+    private void stubCatalogProduct(String productId, List<String> parameterIds, List<String> imageUrls) {
+        when(restApi.fetchWithAuthRetry(eq("/sale/products"), anyMap(), eq(AllegroProductsResponse.class)))
+                .thenReturn(new AllegroProductsResponse(List.of(new AllegroProductsResponse.CatalogProduct(
+                        productId,
+                        parameterIds.stream().map(id -> new AllegroProductsResponse.Parameter(id, List.of("x"))).toList(),
+                        imageUrls.stream().map(AllegroProductsResponse.Image::new).toList()))));
+    }
+
     @Test
     void createsOfferWhenNotListedYet() {
         // given
         stubOffersPage();
         stubShippingRates();
+        stubResponsibleProducers();
+        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"));
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
@@ -64,13 +81,93 @@ class AllegroOfferExportTest {
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
         verify(restApi).postWithAuthRetry(eq("/sale/product-offers"), captor.capture(), eq(Void.class));
         AllegroOfferRequest request = (AllegroOfferRequest) captor.getValue();
-        assertEquals("5901234567890", request.productSet().get(0).product().id());
+        assertEquals("prod-uuid", request.productSet().get(0).product().id());
+        assertEquals("rp-1", request.productSet().get(0).responsibleProducer().id());
+        assertEquals("NO_SAFETY_INFORMATION", request.productSet().get(0).safetyInformation().type());
+        assertEquals(List.of("https://img/1.jpg"), request.images());
+        assertNull(request.parameters());
         assertEquals("PIM-1", request.external().id());
         assertEquals("149.00", request.sellingMode().price().amount());
         assertEquals(10L, request.stock().available());
         assertEquals("rate-1", request.delivery().shippingRates().id());
         assertEquals("ACTIVE", request.publication().status());
         verify(restApi, never()).patchWithAuthRetry(anyString(), any(), any());
+    }
+
+    @Test
+    void createFillsMissingManufacturerCodeAndModelParameters() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        stubResponsibleProducers();
+        stubCatalogProduct("prod-uuid", List.of(), List.of("https://img/1.jpg"));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+
+        // then
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/sale/product-offers"), captor.capture(), eq(Void.class));
+        AllegroOfferRequest request = (AllegroOfferRequest) captor.getValue();
+        assertEquals(2, request.parameters().size());
+        assertEquals("224017", request.parameters().get(0).id());
+        assertEquals(List.of("MC"), request.parameters().get(0).values());
+        assertEquals("237206", request.parameters().get(1).id());
+        assertEquals(List.of("MC"), request.parameters().get(1).values());
+    }
+
+    @Test
+    void skipsCreateWhenProductNotInCatalog() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        stubResponsibleProducers();
+        when(restApi.fetchWithAuthRetry(eq("/sale/products"), anyMap(), eq(AllegroProductsResponse.class)))
+                .thenReturn(new AllegroProductsResponse(List.of()));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+
+        // then
+        verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
+    }
+
+    @Test
+    void skipsCreateWhenCatalogProductHasNoImages() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        stubResponsibleProducers();
+        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of());
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+
+        // then
+        verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
+    }
+
+    @Test
+    void skipsAllCreatesWhenNoResponsibleProducerConfigured() {
+        // given
+        stubOffersPage(summary("101", "PIM-2", "50.00", 5L, "ACTIVE"));
+        stubShippingRates();
+        when(restApi.fetchWithAuthRetry(eq("/sale/responsible-producers"), anyMap(),
+                eq(AllegroResponsibleProducersResponse.class)))
+                .thenReturn(new AllegroResponsibleProducersResponse(List.of()));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(
+                offer("PIM-1", "5901234567890", 149L, 10L),
+                offer("PIM-2", "5900000000000", 60L, 5L)), List.of());
+
+        // then
+        verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
+        verify(restApi).patchWithAuthRetry(eq("/sale/product-offers/101"), any(), eq(Void.class));
     }
 
     @Test
@@ -106,6 +203,7 @@ class AllegroOfferExportTest {
         stubOffersPage(summary("101", "PIM-2", "50.00", 5L, "ACTIVE"));
         when(restApi.fetchWithAuthRetry(eq("/sale/shipping-rates"), anyMap(), eq(AllegroShippingRatesResponse.class)))
                 .thenReturn(new AllegroShippingRatesResponse(List.of()));
+        stubResponsibleProducers();
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
@@ -214,6 +312,8 @@ class AllegroOfferExportTest {
         // given
         stubOffersPage();
         stubShippingRates();
+        stubResponsibleProducers();
+        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"));
         when(restApi.postWithAuthRetry(eq("/sale/product-offers"), any(), eq(Void.class)))
                 .thenThrow(new HttpClientException(422, "product not found"))
                 .thenReturn(null);
@@ -233,6 +333,8 @@ class AllegroOfferExportTest {
         // given
         stubOffersPage();
         stubShippingRates();
+        stubResponsibleProducers();
+        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"));
         when(restApi.postWithAuthRetry(eq("/sale/product-offers"), any(), eq(Void.class)))
                 .thenThrow(new HttpClientException(500, "internal error"));
         AllegroOfferExport export = new AllegroOfferExport(restApi);
@@ -247,6 +349,8 @@ class AllegroOfferExportTest {
         // given
         stubOffersPage(summary("999", null, "149.00", 10L, "ACTIVE"));
         stubShippingRates();
+        stubResponsibleProducers();
+        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"));
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when

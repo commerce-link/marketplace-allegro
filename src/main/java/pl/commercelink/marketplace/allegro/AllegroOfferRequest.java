@@ -12,22 +12,31 @@ record AllegroOfferRequest(
         SellingMode sellingMode,
         Stock stock,
         Delivery delivery,
-        Publication publication) {
+        Publication publication,
+        List<String> images,
+        List<OfferParameter> parameters) {
 
     private static final String CURRENCY_PLN = "PLN";
-    private static final String ID_TYPE_GTIN = "GTIN";
     private static final String STOCK_UNIT = "UNIT";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_ENDED = "ENDED";
+    private static final String SAFETY_NO_INFORMATION = "NO_SAFETY_INFORMATION";
 
-    static AllegroOfferRequest createOffer(MarketplaceOffer offer, String shippingRatesId) {
+    static AllegroOfferRequest createOffer(MarketplaceOffer offer, String shippingRatesId,
+                                           String responsibleProducerId, String productId,
+                                           List<String> images, List<OfferParameter> parameters) {
         return new AllegroOfferRequest(
-                List.of(new ProductSetItem(new Product(offer.ean(), ID_TYPE_GTIN))),
+                List.of(new ProductSetItem(
+                        new Product(productId),
+                        new ResponsibleProducer(responsibleProducerId),
+                        new SafetyInformation(SAFETY_NO_INFORMATION))),
                 new External(offer.productId()),
                 sellingMode(offer),
                 stock(offer),
                 new Delivery(new ShippingRates(shippingRatesId)),
-                new Publication(STATUS_ACTIVE));
+                new Publication(STATUS_ACTIVE),
+                images,
+                parameters.isEmpty() ? null : parameters);
     }
 
     static AllegroOfferRequest updateOffer(MarketplaceOffer offer) {
@@ -37,11 +46,13 @@ record AllegroOfferRequest(
                 sellingMode(offer),
                 stock(offer),
                 null,
-                new Publication(offer.quantity() > 0 ? STATUS_ACTIVE : STATUS_ENDED));
+                new Publication(offer.quantity() > 0 ? STATUS_ACTIVE : STATUS_ENDED),
+                null,
+                null);
     }
 
     static AllegroOfferRequest endOffer() {
-        return new AllegroOfferRequest(null, null, null, null, null, new Publication(STATUS_ENDED));
+        return new AllegroOfferRequest(null, null, null, null, null, new Publication(STATUS_ENDED), null, null);
     }
 
     private static SellingMode sellingMode(MarketplaceOffer offer) {
@@ -52,10 +63,16 @@ record AllegroOfferRequest(
         return new Stock(offer.quantity(), STOCK_UNIT);
     }
 
-    record ProductSetItem(Product product) {
+    record ProductSetItem(Product product, ResponsibleProducer responsibleProducer, SafetyInformation safetyInformation) {
     }
 
-    record Product(String id, String idType) {
+    record Product(String id) {
+    }
+
+    record ResponsibleProducer(String id) {
+    }
+
+    record SafetyInformation(String type) {
     }
 
     record External(String id) {
@@ -77,5 +94,8 @@ record AllegroOfferRequest(
     }
 
     record Publication(String status) {
+    }
+
+    record OfferParameter(String id, List<String> values) {
     }
 }

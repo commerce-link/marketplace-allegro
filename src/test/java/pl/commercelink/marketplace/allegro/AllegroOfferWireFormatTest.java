@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import pl.commercelink.marketplace.api.MarketplaceOffer;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class AllegroOfferWireFormatTest {
@@ -73,22 +75,85 @@ class AllegroOfferWireFormatTest {
     }
 
     @Test
-    void serializesCreateOfferWithGtinExternalIdPriceStockDeliveryAndActivePublication() throws Exception {
+    void serializesCreateOfferWithProductGpsrImagesAndParameters() throws Exception {
         // given
         MarketplaceOffer offer = new MarketplaceOffer(
                 "PIM-123", "5901234567890", "MC-1", "Acme", "Produkt testowy", "Laptopy", 149L, 10L, 3);
 
         // when
-        String json = objectMapper.writeValueAsString(AllegroOfferRequest.createOffer(offer, "rate-1"));
+        String json = objectMapper.writeValueAsString(AllegroOfferRequest.createOffer(
+                offer, "rate-1", "rp-1", "prod-uuid",
+                List.of("https://img.example/1.jpg"),
+                List.of(new AllegroOfferRequest.OfferParameter("224017", List.of("MC-1")),
+                        new AllegroOfferRequest.OfferParameter("237206", List.of("MC-1")))));
 
         // then
         assertEquals("""
-                {"productSet":[{"product":{"id":"5901234567890","idType":"GTIN"}}],\
+                {"productSet":[{"product":{"id":"prod-uuid"},\
+                "responsibleProducer":{"id":"rp-1"},\
+                "safetyInformation":{"type":"NO_SAFETY_INFORMATION"}}],\
                 "external":{"id":"PIM-123"},\
                 "sellingMode":{"price":{"amount":"149.00","currency":"PLN"}},\
                 "stock":{"available":10,"unit":"UNIT"},\
                 "delivery":{"shippingRates":{"id":"rate-1"}},\
-                "publication":{"status":"ACTIVE"}}""", json);
+                "publication":{"status":"ACTIVE"},\
+                "images":["https://img.example/1.jpg"],\
+                "parameters":[{"id":"224017","values":["MC-1"]},{"id":"237206","values":["MC-1"]}]}""", json);
+    }
+
+    @Test
+    void createOfferOmitsParametersWhenNoneMissing() throws Exception {
+        // given
+        MarketplaceOffer offer = new MarketplaceOffer(
+                "PIM-123", "5901234567890", "MC-1", null, null, null, 149L, 10L, 3);
+
+        // when
+        String json = objectMapper.writeValueAsString(AllegroOfferRequest.createOffer(
+                offer, "rate-1", "rp-1", "prod-uuid", List.of("https://img.example/1.jpg"), List.of()));
+
+        // then
+        assertFalse(json.contains("\"parameters\""));
+    }
+
+    @Test
+    void deserializesProductsSearchPage() throws Exception {
+        // given
+        String json = """
+                {
+                  "products": [
+                    {
+                      "id": "prod-uuid",
+                      "name": "Produkt",
+                      "parameters": [{"id": "224017", "name": "Kod producenta", "values": ["AK-1"]}],
+                      "images": [{"url": "https://img.example/1.jpg"}]
+                    }
+                  ]
+                }
+                """;
+
+        // when
+        AllegroProductsResponse response = objectMapper.readValue(json, AllegroProductsResponse.class);
+
+        // then
+        AllegroProductsResponse.CatalogProduct product = response.products().get(0);
+        assertEquals("prod-uuid", product.id());
+        assertEquals("224017", product.parameters().get(0).id());
+        assertEquals("https://img.example/1.jpg", product.images().get(0).url());
+    }
+
+    @Test
+    void deserializesResponsibleProducersList() throws Exception {
+        // given
+        String json = """
+                {"responsibleProducers": [{"id": "rp-1", "name": "Producent Sp. z o.o."}], "count": 1, "totalCount": 1}
+                """;
+
+        // when
+        AllegroResponsibleProducersResponse response =
+                objectMapper.readValue(json, AllegroResponsibleProducersResponse.class);
+
+        // then
+        assertEquals("rp-1", response.responsibleProducers().get(0).id());
     }
 
     @Test
