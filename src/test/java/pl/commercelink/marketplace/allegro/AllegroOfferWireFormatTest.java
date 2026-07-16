@@ -91,7 +91,7 @@ class AllegroOfferWireFormatTest {
         assertEquals("""
                 {"productSet":[{"product":{"id":"prod-uuid"},\
                 "responsibleProducer":{"id":"rp-1"},\
-                "safetyInformation":{"type":"NO_SAFETY_INFORMATION"}}],\
+                "safetyInformation":{"type":"TEXT","description":"Szczegółowe informacje o bezpieczeństwie produktu dostępne są u producenta."}}],\
                 "external":{"id":"PIM-123"},\
                 "sellingMode":{"price":{"amount":"149.00","currency":"PLN"}},\
                 "stock":{"available":10,"unit":"UNIT"},\

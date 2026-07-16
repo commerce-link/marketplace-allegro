@@ -20,7 +20,8 @@ record AllegroOfferRequest(
     private static final String STOCK_UNIT = "UNIT";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_ENDED = "ENDED";
-    private static final String SAFETY_NO_INFORMATION = "NO_SAFETY_INFORMATION";
+    private static final String SAFETY_TYPE_TEXT = "TEXT";
+    private static final String SAFETY_TEXT = "Szczegółowe informacje o bezpieczeństwie produktu dostępne są u producenta.";
 
     static AllegroOfferRequest createOffer(MarketplaceOffer offer, String shippingRatesId,
                                            String responsibleProducerId, String productId,
@@ -29,7 +30,7 @@ record AllegroOfferRequest(
                 List.of(new ProductSetItem(
                         new Product(productId),
                         new ResponsibleProducer(responsibleProducerId),
-                        new SafetyInformation(SAFETY_NO_INFORMATION))),
+                        new SafetyInformation(SAFETY_TYPE_TEXT, SAFETY_TEXT))),
                 new External(offer.productId()),
                 sellingMode(offer),
                 stock(offer),
@@ -72,7 +73,7 @@ record AllegroOfferRequest(
     record ResponsibleProducer(String id) {
     }
 
-    record SafetyInformation(String type) {
+    record SafetyInformation(String type, String description) {
     }
 
     record External(String id) {

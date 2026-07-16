@@ -83,7 +83,7 @@ class AllegroOfferExportTest {
         AllegroOfferRequest request = (AllegroOfferRequest) captor.getValue();
         assertEquals("prod-uuid", request.productSet().get(0).product().id());
         assertEquals("rp-1", request.productSet().get(0).responsibleProducer().id());
-        assertEquals("NO_SAFETY_INFORMATION", request.productSet().get(0).safetyInformation().type());
+        assertEquals("TEXT", request.productSet().get(0).safetyInformation().type());
         assertEquals(List.of("https://img/1.jpg"), request.images());
         assertNull(request.parameters());
         assertEquals("PIM-1", request.external().id());
