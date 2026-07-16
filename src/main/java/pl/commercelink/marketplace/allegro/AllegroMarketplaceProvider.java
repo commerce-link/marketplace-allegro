@@ -13,10 +13,12 @@ class AllegroMarketplaceProvider implements MarketplaceProvider {
 
     private final AllegroOrdersImport ordersImport;
     private final AllegroOrderLifecycleEventHandler lifecycleHandler;
+    private final AllegroOfferExport offerExport;
 
     AllegroMarketplaceProvider(RestApiWithRetry restApi) {
         this.ordersImport = new AllegroOrdersImport(restApi);
         this.lifecycleHandler = new AllegroOrderLifecycleEventHandler(restApi);
+        this.offerExport = new AllegroOfferExport(restApi);
     }
 
     @Override
@@ -26,6 +28,7 @@ class AllegroMarketplaceProvider implements MarketplaceProvider {
 
     @Override
     public void exportOffers(List<MarketplaceOffer> toPublish, List<MarketplaceOffer> toRemove) {
+        offerExport.export(toPublish, toRemove);
     }
 
     @Override
