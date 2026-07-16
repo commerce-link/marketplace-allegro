@@ -74,7 +74,7 @@ class AllegroWireFormatTest {
                         "taxId": "6762459846",
                         "ids": [{"type": "PL_NIP", "value": "5252530705"}]
                       },
-                      "naturalPerson": null
+                      "naturalPerson": {"firstName": "Anna", "lastName": "Nowak"}
                     }
                   },
                   "lineItems": [
@@ -140,7 +140,8 @@ class AllegroWireFormatTest {
         assertEquals("Krakow", invoiceAddress.city());
         assertEquals("30-001", invoiceAddress.zipCode());
         assertEquals("PL", invoiceAddress.countryCode());
-        assertNull(invoiceAddress.naturalPerson());
+        assertEquals("Anna", invoiceAddress.naturalPerson().firstName());
+        assertEquals("Nowak", invoiceAddress.naturalPerson().lastName());
 
         AllegroCheckoutForm.Company company = invoiceAddress.company();
         assertEquals("ACME Sp. z o.o.", company.name());
