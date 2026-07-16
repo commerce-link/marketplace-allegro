@@ -1,0 +1,68 @@
+package pl.commercelink.marketplace.allegro;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import pl.commercelink.marketplace.api.MarketplaceOrder;
+import pl.commercelink.rest.client.RestApi;
+import pl.commercelink.rest.client.RestApiWithRetry;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.Base64;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+@EnabledIfSystemProperty(named = "allegro.sandbox.smoke", matches = "true")
+class AllegroSandboxSmokeTest {
+
+    private static final String API_URL = "https://api.allegro.pl.allegrosandbox.pl";
+    private static final String TOKEN_URL = "https://allegro.pl.allegrosandbox.pl/auth/oauth/token";
+
+    @Test
+    void fetchesPaidOrdersFromSandbox() throws Exception {
+        // given
+        String accessToken = fetchAccessToken(
+                System.getenv("ALLEGRO_CLIENT_ID"),
+                System.getenv("ALLEGRO_CLIENT_SECRET"),
+                System.getenv("ALLEGRO_REFRESH_TOKEN"));
+        RestApi restApi = RestApi.builder(API_URL)
+                .defaultHeader("Accept", "application/vnd.allegro.public.v1+json")
+                .defaultHeader("Content-Type", "application/vnd.allegro.public.v1+json")
+                .build();
+        AllegroMarketplaceProvider provider = new AllegroMarketplaceProvider(
+                new RestApiWithRetry(restApi, () -> accessToken));
+
+        // when
+        List<MarketplaceOrder> orders = provider.fetchOrders();
+
+        // then
+        assertNotNull(orders);
+        System.out.println("Zaimportowane oplacone zamowienia: " + orders.size());
+        orders.forEach(o -> System.out.println("  " + o.externalOrderId() + " " + o.paymentType()));
+    }
+
+    private String fetchAccessToken(String clientId, String clientSecret, String refreshToken) throws Exception {
+        String basic = Base64.getEncoder().encodeToString((clientId + ":" + clientSecret).getBytes());
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(TOKEN_URL))
+                .header("Authorization", "Basic " + basic)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        "grant_type=refresh_token&refresh_token=" + refreshToken))
+                .build();
+        HttpResponse<String> response = HttpClient.newHttpClient()
+                .send(request, HttpResponse.BodyHandlers.ofString());
+        String body = response.body();
+        String marker = "\"access_token\":\"";
+        int start = body.indexOf(marker);
+        if (response.statusCode() != 200 || start == -1) {
+            throw new IllegalStateException(
+                    "Token refresh failed (HTTP " + response.statusCode() + "): " + body);
+        }
+        start += marker.length();
+        return body.substring(start, body.indexOf('"', start));
+    }
+}
