@@ -40,7 +40,7 @@ class AllegroSandboxSmokeTest {
 
         // then
         assertNotNull(orders);
-        System.out.println("Zaimportowane oplacone zamowienia: " + orders.size());
+        System.out.println("Imported paid orders: " + orders.size());
         orders.forEach(o -> System.out.println("  " + o.externalOrderId() + " " + o.paymentType()));
     }
 

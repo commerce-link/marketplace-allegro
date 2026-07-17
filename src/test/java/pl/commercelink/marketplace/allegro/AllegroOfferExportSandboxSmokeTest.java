@@ -36,7 +36,7 @@ class AllegroOfferExportSandboxSmokeTest {
         if (smokeEan == null || smokeEan.isBlank()) {
             // when / then
             provider.exportOffers(List.of(), List.of());
-            System.out.println("Read-only smoke OK (listing + brak zmian); ustaw ALLEGRO_SMOKE_EAN aby przetestowac create");
+            System.out.println("Read-only smoke OK (listing + no changes); set ALLEGRO_SMOKE_EAN to exercise create");
             return;
         }
         MarketplaceOffer offer = new MarketplaceOffer(
@@ -45,14 +45,14 @@ class AllegroOfferExportSandboxSmokeTest {
         // when
         provider.exportOffers(List.of(offer), List.of());
         if ("true".equalsIgnoreCase(System.getenv("ALLEGRO_SMOKE_KEEP"))) {
-            System.out.println("Smoke OK: create dla EAN " + smokeEan + " (oferta pozostawiona ACTIVE na koncie)");
+            System.out.println("Smoke OK: create for EAN " + smokeEan + " (offer left ACTIVE on the account)");
             return;
         }
         provider.exportOffers(List.of(), List.of(new MarketplaceOffer(
                 "SMOKE-" + smokeEan, null, null, null, null, null, 9999L, 0L, 0)));
 
         // then
-        System.out.println("Smoke OK: create + end dla EAN " + smokeEan);
+        System.out.println("Smoke OK: create + end for EAN " + smokeEan);
     }
 
     private String fetchAccessToken(String clientId, String clientSecret, String refreshToken) throws Exception {
