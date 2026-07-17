@@ -125,7 +125,8 @@ class AllegroOfferWireFormatTest {
                       "id": "prod-uuid",
                       "name": "Produkt",
                       "parameters": [{"id": "224017", "name": "Kod producenta", "values": ["AK-1"]}],
-                      "images": [{"url": "https://img.example/1.jpg"}]
+                      "images": [{"url": "https://img.example/1.jpg"}],
+                      "productSafety": {"responsibleProducers": [{"id": "rp-akyga", "name": "Akyga."}]}
                     }
                   ]
                 }
@@ -139,6 +140,7 @@ class AllegroOfferWireFormatTest {
         assertEquals("prod-uuid", product.id());
         assertEquals("224017", product.parameters().get(0).id());
         assertEquals("https://img.example/1.jpg", product.images().get(0).url());
+        assertEquals("rp-akyga", product.productSafety().responsibleProducers().get(0).id());
     }
 
     @Test

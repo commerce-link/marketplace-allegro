@@ -44,6 +44,10 @@ class AllegroOfferExportSandboxSmokeTest {
 
         // when
         provider.exportOffers(List.of(offer), List.of());
+        if ("true".equalsIgnoreCase(System.getenv("ALLEGRO_SMOKE_KEEP"))) {
+            System.out.println("Smoke OK: create dla EAN " + smokeEan + " (oferta pozostawiona ACTIVE na koncie)");
+            return;
+        }
         provider.exportOffers(List.of(), List.of(new MarketplaceOffer(
                 "SMOKE-" + smokeEan, null, null, null, null, null, 9999L, 0L, 0)));
 
