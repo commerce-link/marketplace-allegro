@@ -48,12 +48,14 @@ class AllegroOrdersImport {
     }
 
     private boolean isImportable(AllegroCheckoutForm form) {
-        boolean importable = form.delivery() != null && form.delivery().cost() != null
+        boolean importable = form.buyer() != null
+                && form.delivery() != null && form.delivery().cost() != null
                 && form.delivery().address() != null
-                && form.lineItems() != null && !form.lineItems().isEmpty();
+                && form.lineItems() != null && !form.lineItems().isEmpty()
+                && form.lineItems().stream().allMatch(item -> item.price() != null && item.price().amount() != null);
         if (!importable) {
             LOGGER.log(System.Logger.Level.WARNING,
-                    "Skipping Allegro checkout form {0}: incomplete delivery/lineItems data", form.id());
+                    "Skipping Allegro checkout form {0}: incomplete buyer/delivery/lineItems data", form.id());
         }
         return importable;
     }

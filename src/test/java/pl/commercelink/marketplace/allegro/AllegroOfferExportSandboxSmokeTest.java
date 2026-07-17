@@ -2,7 +2,7 @@ package pl.commercelink.marketplace.allegro;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
-import pl.commercelink.marketplace.api.MarketplaceOrder;
+import pl.commercelink.marketplace.api.MarketplaceOffer;
 import pl.commercelink.rest.client.RestApi;
 import pl.commercelink.rest.client.RestApiWithRetry;
 
@@ -13,16 +13,14 @@ import java.net.http.HttpResponse;
 import java.util.Base64;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-
 @EnabledIfSystemProperty(named = "allegro.sandbox.smoke", matches = "true")
-class AllegroSandboxSmokeTest {
+class AllegroOfferExportSandboxSmokeTest {
 
     private static final String API_URL = "https://api.allegro.pl.allegrosandbox.pl";
     private static final String TOKEN_URL = "https://allegro.pl.allegrosandbox.pl/auth/oauth/token";
 
     @Test
-    void fetchesPaidOrdersFromSandbox() throws Exception {
+    void exportsSingleOfferAgainstSandbox() throws Exception {
         // given
         String accessToken = fetchAccessToken(
                 System.getenv("ALLEGRO_CLIENT_ID"),
@@ -34,14 +32,27 @@ class AllegroSandboxSmokeTest {
                 .build();
         AllegroMarketplaceProvider provider = new AllegroMarketplaceProvider(
                 new RestApiWithRetry(restApi, () -> accessToken));
+        String smokeEan = System.getenv("ALLEGRO_SMOKE_EAN");
+        if (smokeEan == null || smokeEan.isBlank()) {
+            // when / then
+            provider.exportOffers(List.of(), List.of());
+            System.out.println("Read-only smoke OK (listing + no changes); set ALLEGRO_SMOKE_EAN to exercise create");
+            return;
+        }
+        MarketplaceOffer offer = new MarketplaceOffer(
+                "SMOKE-" + smokeEan, smokeEan, null, null, null, null, 9999L, 1L, 3);
 
         // when
-        List<MarketplaceOrder> orders = provider.fetchOrders();
+        provider.exportOffers(List.of(offer), List.of());
+        if ("true".equalsIgnoreCase(System.getenv("ALLEGRO_SMOKE_KEEP"))) {
+            System.out.println("Smoke OK: create for EAN " + smokeEan + " (offer left ACTIVE on the account)");
+            return;
+        }
+        provider.exportOffers(List.of(), List.of(new MarketplaceOffer(
+                "SMOKE-" + smokeEan, null, null, null, null, null, 9999L, 0L, 0)));
 
         // then
-        assertNotNull(orders);
-        System.out.println("Imported paid orders: " + orders.size());
-        orders.forEach(o -> System.out.println("  " + o.externalOrderId() + " " + o.paymentType()));
+        System.out.println("Smoke OK: create + end for EAN " + smokeEan);
     }
 
     private String fetchAccessToken(String clientId, String clientSecret, String refreshToken) throws Exception {

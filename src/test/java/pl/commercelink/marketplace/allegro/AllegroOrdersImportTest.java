@@ -238,9 +238,19 @@ class AllegroOrdersImportTest {
 
     @Test
     void fetchOrdersMapsProductsShippingAndPayment() {
-        // given
+        // given: buyer email/phone are DISTINCT from each other and from the delivery-address
+        // phone so a positional swap (buyer-email/phone, buyer-phone/address-phone) fails the test
+        AllegroCheckoutForm.Buyer distinctBuyer = new AllegroCheckoutForm.Buyer(
+                "b-1", "buyer+42@user.allegromail.pl", "buyer1", "Jan", "Kowalski", null, "+48555666777");
+        AllegroCheckoutForm form = new AllegroCheckoutForm("o-1", "READY_FOR_PROCESSING",
+                distinctBuyer,
+                paidForm("x").payment(),
+                paidForm("x").fulfillment(),
+                paidForm("x").delivery(),
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
         when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
-                .thenReturn(new AllegroCheckoutFormsResponse(List.of(paidForm("o-1")), 1, 1));
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(form), 1, 1));
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
@@ -259,6 +269,8 @@ class AllegroOrdersImportTest {
         assertEquals("pay-1", order.paymentTransactionId());
         assertEquals(MarketplaceCustomer.CustomerType.INDIVIDUAL, order.customer().customerType());
         assertEquals("Jan Kowalski", order.customer().name());
+        assertEquals("buyer+42@user.allegromail.pl", order.customer().email());
+        assertEquals("+48555666777", order.customer().phone());
         assertNull(order.customer().shippingAddress().pickupPoint());
     }
 
@@ -455,6 +467,53 @@ class AllegroOrdersImportTest {
                 paidForm("x").lineItems());
         when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
                 .thenReturn(new AllegroCheckoutFormsResponse(List.of(missingDelivery, paidForm("o-1")), 2, 2));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals(1, orders.size());
+        assertEquals("o-1", orders.get(0).externalOrderId());
+    }
+
+    @Test
+    void skipsFormWithMissingBuyerInsteadOfFailingWholeImport() {
+        // given
+        AllegroCheckoutForm missingBuyer = new AllegroCheckoutForm("o-23", "READY_FOR_PROCESSING",
+                null,
+                new AllegroCheckoutForm.Payment("pay-23", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(),
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(missingBuyer, paidForm("o-1")), 2, 2));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals(1, orders.size());
+        assertEquals("o-1", orders.get(0).externalOrderId());
+    }
+
+    @Test
+    void skipsFormWithLineItemMissingPrice() {
+        // given
+        AllegroCheckoutForm missingPrice = new AllegroCheckoutForm("o-24", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-24", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(),
+                paidForm("x").invoice(),
+                List.of(new AllegroCheckoutForm.LineItem(
+                        new AllegroCheckoutForm.Offer("offer-1", "Laptop X", new AllegroCheckoutForm.External("SKU-1")),
+                        2,
+                        null)));
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(missingPrice, paidForm("o-1")), 2, 2));
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when

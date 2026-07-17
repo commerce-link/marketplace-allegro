@@ -2,7 +2,8 @@
 
 Allegro marketplace integration for the CommerceLink platform. Implements `MarketplaceProvider`
 (`marketplace-api:0.2.2`), discovered via SPI. Scope: import of paid orders only + order
-lifecycle (accept/ship/cancel). Offer export and invoices — stage 2.
+lifecycle (accept/ship/cancel) + offer export (full create/update/end cycle against
+`/sale/product-offers`). Invoices — separate ticket (`updateInvoice` is a no-op).
 
 ## How the "paid only" import works
 
@@ -14,10 +15,10 @@ Cash-on-delivery orders (CASH_ON_DELIVERY) are imported — payment happens on d
 ## Integration configuration (form in the app)
 
 - `clientId` / `clientSecret` — an application from https://apps.developer.allegro.pl
-- `refreshToken` — one-time bootstrap: `./scripts/allegro-device-auth.sh <clientId> <clientSecret>`
-  (for production, prefix with `ALLEGRO_OAUTH_BASE=https://allegro.pl/auth/oauth`).
-  After saving the form the application refreshes and rotates tokens automatically
-  (access 12 h, refresh 3 months).
+- `refreshToken` — one-time bootstrap: obtain it via the OAuth2 device flow (see
+  "Testing on the Allegro Sandbox", step 3; for production use the
+  `https://allegro.pl/auth/oauth` base). After saving the form the application
+  refreshes and rotates tokens automatically (access 12 h, refresh 3 months).
 
 ## Testing on the Allegro Sandbox
 
@@ -26,10 +27,12 @@ Cash-on-delivery orders (CASH_ON_DELIVERY) are imported — payment happens on d
    the company data and sales settings in the Sales Center.
 2. Register an application at https://apps.developer.allegro.pl.allegrosandbox.pl
    (device flow, scope orders read+write) — credentials are separate from production.
-3. Seller refresh token: `./scripts/allegro-device-auth.sh <clientId> <clientSecret>`.
-   The client secret can also be provided via the `ALLEGRO_CLIENT_SECRET` environment
-   variable (the script uses it as a fallback for `$2`), keeping it out of shell history
-   and `ps` output.
+3. Seller refresh token — manual OAuth2 device flow (RFC 8628) against
+   `BASE=https://allegro.pl.allegrosandbox.pl/auth/oauth` (production: `https://allegro.pl/auth/oauth`):
+   `curl -u "$CLIENT_ID:$CLIENT_SECRET" -d "client_id=$CLIENT_ID" "$BASE/device"`, open the
+   returned `verification_uri_complete` logged in as the seller and confirm, then poll
+   `curl -u "$CLIENT_ID:$CLIENT_SECRET" -d "grant_type=urn:ietf:params:oauth:grant-type:device_code" -d "device_code=<device_code>" "$BASE/token"`
+   until it returns the `refresh_token` (on `authorization_pending` wait `interval` seconds and retry).
 4. List an offer as the seller (sandbox UI), buy it as the buyer and PAY for it in the
    payment simulator (payments-simulator.allegrosandbox.pl — choose a successful payment).
    The order transitions to READY_FOR_PROCESSING.
