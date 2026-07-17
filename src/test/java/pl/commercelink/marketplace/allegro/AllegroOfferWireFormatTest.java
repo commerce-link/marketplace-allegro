@@ -144,21 +144,6 @@ class AllegroOfferWireFormatTest {
     }
 
     @Test
-    void deserializesResponsibleProducersList() throws Exception {
-        // given
-        String json = """
-                {"responsibleProducers": [{"id": "rp-1", "name": "Producent Sp. z o.o."}], "count": 1, "totalCount": 1}
-                """;
-
-        // when
-        AllegroResponsibleProducersResponse response =
-                objectMapper.readValue(json, AllegroResponsibleProducersResponse.class);
-
-        // then
-        assertEquals("rp-1", response.responsibleProducers().get(0).id());
-    }
-
-    @Test
     void serializesUpdateOfferWithoutProductSetAndDelivery() throws Exception {
         // given
         MarketplaceOffer offer = new MarketplaceOffer(

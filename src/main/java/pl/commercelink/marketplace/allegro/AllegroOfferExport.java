@@ -33,17 +33,15 @@ class AllegroOfferExport {
                 .anyMatch(o -> !existing.containsKey(o.productId()) && o.quantity() > 0
                         && o.ean() != null && !o.ean().isBlank());
         String shippingRatesId = null;
-        String fallbackProducerId = null;
         if (anyCreates) {
             try {
                 shippingRatesId = firstShippingRatesId();
-                fallbackProducerId = firstResponsibleProducerId();
             } catch (HttpClientException e) {
                 if (e.getStatusCode() >= 500) {
                     throw e;
                 }
                 LOGGER.log(System.Logger.Level.WARNING,
-                        "Failed to fetch shipping rates / responsible producers: HTTP {0} {1}, skipping all offer creates",
+                        "Failed to fetch shipping rates: HTTP {0} {1}, skipping all offer creates",
                         e.getStatusCode(), e.getResponseBody());
             }
         }
@@ -52,7 +50,7 @@ class AllegroOfferExport {
             AllegroOffersResponse.OfferSummary current = existing.get(offer.productId());
             try {
                 if (current == null) {
-                    createOffer(offer, shippingRatesId, fallbackProducerId);
+                    createOffer(offer, shippingRatesId);
                 } else if (needsUpdate(offer, current)) {
                     restApi.patchWithAuthRetry("/sale/product-offers/" + current.id(),
                             AllegroOfferRequest.updateOffer(offer), Void.class);
@@ -76,7 +74,7 @@ class AllegroOfferExport {
         }
     }
 
-    private void createOffer(MarketplaceOffer offer, String shippingRatesId, String fallbackProducerId) {
+    private void createOffer(MarketplaceOffer offer, String shippingRatesId) {
         if (offer.quantity() <= 0) {
             return;
         }
@@ -103,10 +101,10 @@ class AllegroOfferExport {
                     offer.productId(), product.id());
             return;
         }
-        String responsibleProducerId = resolveResponsibleProducerId(product, fallbackProducerId);
+        String responsibleProducerId = resolveResponsibleProducerId(product);
         if (responsibleProducerId == null) {
             LOGGER.log(System.Logger.Level.WARNING,
-                    "Skipping Allegro offer create for {0}: product {1} has no responsible producer and account registry is empty",
+                    "Skipping Allegro offer create for {0}: catalog product {1} has no responsible producer",
                     offer.productId(), product.id());
             return;
         }
@@ -116,13 +114,13 @@ class AllegroOfferExport {
                 Void.class);
     }
 
-    private String resolveResponsibleProducerId(AllegroProductsResponse.CatalogProduct product, String fallbackProducerId) {
-        if (product.productSafety() != null
-                && product.productSafety().responsibleProducers() != null
-                && !product.productSafety().responsibleProducers().isEmpty()) {
-            return product.productSafety().responsibleProducers().get(0).id();
+    private String resolveResponsibleProducerId(AllegroProductsResponse.CatalogProduct product) {
+        if (product.productSafety() == null
+                || product.productSafety().responsibleProducers() == null
+                || product.productSafety().responsibleProducers().isEmpty()) {
+            return null;
         }
-        return fallbackProducerId;
+        return product.productSafety().responsibleProducers().get(0).id();
     }
 
     private AllegroProductsResponse.CatalogProduct findCatalogProduct(String ean) {
@@ -167,17 +165,6 @@ class AllegroOfferExport {
             return null;
         }
         return response.shippingRates().get(0).id();
-    }
-
-    private String firstResponsibleProducerId() {
-        AllegroResponsibleProducersResponse response = restApi.fetchWithAuthRetry(
-                "/sale/responsible-producers", Map.of(), AllegroResponsibleProducersResponse.class);
-        if (response.responsibleProducers() == null || response.responsibleProducers().isEmpty()) {
-            LOGGER.log(System.Logger.Level.WARNING,
-                    "No responsible producers configured on Allegro account, offers for products without their own producer will be skipped");
-            return null;
-        }
-        return response.responsibleProducers().get(0).id();
     }
 
     private Map<String, AllegroOffersResponse.OfferSummary> fetchExistingOffers() {

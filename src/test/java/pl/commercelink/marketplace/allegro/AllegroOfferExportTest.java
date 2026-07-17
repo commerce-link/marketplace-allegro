@@ -50,13 +50,6 @@ class AllegroOfferExportTest {
                         new AllegroShippingRatesResponse.ShippingRate("rate-1", "Cennik"))));
     }
 
-    private void stubResponsibleProducers() {
-        when(restApi.fetchWithAuthRetry(eq("/sale/responsible-producers"), anyMap(),
-                eq(AllegroResponsibleProducersResponse.class)))
-                .thenReturn(new AllegroResponsibleProducersResponse(List.of(
-                        new AllegroResponsibleProducersResponse.ResponsibleProducer("rp-1", "Producent"))));
-    }
-
     private void stubCatalogProduct(String productId, List<String> parameterIds, List<String> imageUrls,
                                     List<String> safetyProducerIds) {
         when(restApi.fetchWithAuthRetry(eq("/sale/products"), anyMap(), eq(AllegroProductsResponse.class)))
@@ -77,8 +70,7 @@ class AllegroOfferExportTest {
         // given
         stubOffersPage();
         stubShippingRates();
-        stubResponsibleProducers();
-        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of());
+        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of("rp-1"));
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
@@ -102,31 +94,11 @@ class AllegroOfferExportTest {
     }
 
     @Test
-    void usesProductOwnResponsibleProducerOverAccountFallback() {
-        // given
-        stubOffersPage();
-        stubShippingRates();
-        stubResponsibleProducers();
-        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of("logi-rp"));
-        AllegroOfferExport export = new AllegroOfferExport(restApi);
-
-        // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
-
-        // then
-        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(restApi).postWithAuthRetry(eq("/sale/product-offers"), captor.capture(), eq(Void.class));
-        AllegroOfferRequest request = (AllegroOfferRequest) captor.getValue();
-        assertEquals("logi-rp", request.productSet().get(0).responsibleProducer().id());
-    }
-
-    @Test
     void createFillsMissingManufacturerCodeAndModelParameters() {
         // given
         stubOffersPage();
         stubShippingRates();
-        stubResponsibleProducers();
-        stubCatalogProduct("prod-uuid", List.of(), List.of("https://img/1.jpg"), List.of());
+        stubCatalogProduct("prod-uuid", List.of(), List.of("https://img/1.jpg"), List.of("rp-1"));
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
@@ -148,11 +120,10 @@ class AllegroOfferExportTest {
         // given
         stubOffersPage();
         stubShippingRates();
-        stubResponsibleProducers();
         List<String> manyImages = java.util.stream.IntStream.rangeClosed(1, 20)
                 .mapToObj(i -> "https://img/" + i + ".jpg")
                 .toList();
-        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), manyImages, List.of());
+        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), manyImages, List.of("rp-1"));
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
@@ -169,7 +140,6 @@ class AllegroOfferExportTest {
         // given
         stubOffersPage();
         stubShippingRates();
-        stubResponsibleProducers();
         when(restApi.fetchWithAuthRetry(eq("/sale/products"), anyMap(), eq(AllegroProductsResponse.class)))
                 .thenReturn(new AllegroProductsResponse(List.of()));
         AllegroOfferExport export = new AllegroOfferExport(restApi);
@@ -186,7 +156,6 @@ class AllegroOfferExportTest {
         // given
         stubOffersPage();
         stubShippingRates();
-        stubResponsibleProducers();
         stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of(), List.of());
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
@@ -198,13 +167,10 @@ class AllegroOfferExportTest {
     }
 
     @Test
-    void skipsCreateWhenProductHasNoProducerAndRegistryEmpty() {
+    void skipsCreateWhenProductHasNoResponsibleProducer() {
         // given
         stubOffersPage(summary("101", "PIM-2", "50.00", 5L, "ACTIVE"));
         stubShippingRates();
-        when(restApi.fetchWithAuthRetry(eq("/sale/responsible-producers"), anyMap(),
-                eq(AllegroResponsibleProducersResponse.class)))
-                .thenReturn(new AllegroResponsibleProducersResponse(List.of()));
         stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of());
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
@@ -251,7 +217,6 @@ class AllegroOfferExportTest {
         stubOffersPage(summary("101", "PIM-2", "50.00", 5L, "ACTIVE"));
         when(restApi.fetchWithAuthRetry(eq("/sale/shipping-rates"), anyMap(), eq(AllegroShippingRatesResponse.class)))
                 .thenReturn(new AllegroShippingRatesResponse(List.of()));
-        stubResponsibleProducers();
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
@@ -388,27 +353,6 @@ class AllegroOfferExportTest {
     }
 
     @Test
-    void skipsAllCreatesWhenResponsibleProducersFetchFailsWithClientError() {
-        // given
-        stubOffersPage(summary("101", "PIM-2", "50.00", 5L, "ACTIVE"));
-        stubShippingRates();
-        when(restApi.fetchWithAuthRetry(eq("/sale/responsible-producers"), anyMap(),
-                eq(AllegroResponsibleProducersResponse.class)))
-                .thenThrow(new HttpClientException(404, "feature not available"));
-        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of());
-        AllegroOfferExport export = new AllegroOfferExport(restApi);
-
-        // when
-        export.export(List.of(
-                offer("PIM-1", "5901234567890", 149L, 10L),
-                offer("PIM-2", "5900000000000", 60L, 5L)), List.of());
-
-        // then
-        verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
-        verify(restApi).patchWithAuthRetry(eq("/sale/product-offers/101"), any(), eq(Void.class));
-    }
-
-    @Test
     void rethrowsServerErrorFromShippingRatesFetch() {
         // given
         stubOffersPage();
@@ -442,8 +386,7 @@ class AllegroOfferExportTest {
         // given
         stubOffersPage();
         stubShippingRates();
-        stubResponsibleProducers();
-        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of());
+        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of("rp-1"));
         when(restApi.postWithAuthRetry(eq("/sale/product-offers"), any(), eq(Void.class)))
                 .thenThrow(new HttpClientException(422, "product not found"))
                 .thenReturn(null);
@@ -463,8 +406,7 @@ class AllegroOfferExportTest {
         // given
         stubOffersPage();
         stubShippingRates();
-        stubResponsibleProducers();
-        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of());
+        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of("rp-1"));
         when(restApi.postWithAuthRetry(eq("/sale/product-offers"), any(), eq(Void.class)))
                 .thenThrow(new HttpClientException(500, "internal error"));
         AllegroOfferExport export = new AllegroOfferExport(restApi);
@@ -479,8 +421,7 @@ class AllegroOfferExportTest {
         // given
         stubOffersPage(summary("999", null, "149.00", 10L, "ACTIVE"));
         stubShippingRates();
-        stubResponsibleProducers();
-        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of());
+        stubCatalogProduct("prod-uuid", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of("rp-1"));
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
