@@ -20,28 +20,28 @@ Cash-on-delivery orders (CASH_ON_DELIVERY) are imported — payment happens on d
   `https://allegro.pl/auth/oauth` base). After saving the form the application
   refreshes and rotates tokens automatically (access 12 h, refresh 3 months).
 
-## GPSR — osoba odpowiedzialna i producent
+## GPSR — responsible person and producer
 
-Eksport ofert korzysta ze słowników konta Allegro (definiowanych w panelu:
-Moje Allegro → Ustawienia sprzedaży, lub przez API `/sale/responsible-persons`
-i `/sale/responsible-producers`):
+The offer export uses the Allegro account dictionaries (defined in the panel:
+My Allegro → Sales settings, or via the `/sale/responsible-persons` and
+`/sale/responsible-producers` API):
 
-- **Osoba odpowiedzialna** (`productSet[0].responsiblePerson`, wymagana przez
-  Allegro dla producentów spoza UE): wybierana po nazwie wpisu równej marce
-  produktu (bez rozróżniania wielkości liter); gdy brak dopasowania, a na
-  liście jest dokładnie jeden wpis — używany jest ten wpis; w przeciwnym razie
-  oferta wysyłana jest bez osoby odpowiedzialnej.
-- **Producent odpowiedzialny**: preferowany jest producent z karty produktu w
-  katalogu Allegro; gdy katalog go nie ma, używany jest wpis słownika konta
-  o nazwie równej marce produktu; bez żadnego z nich oferta jest pomijana
-  (WARN w logach).
+- **Responsible person** (`productSet[0].responsiblePerson`, required by
+  Allegro for producers from outside the EU): selected by the entry name
+  equal to the product brand (case-insensitive); when there is no match and
+  the list contains exactly one entry, that entry is used; otherwise the
+  offer is sent without a responsible person.
+- **Responsible producer**: the producer from the Allegro catalog product
+  page is preferred; when the catalog has none, the account dictionary entry
+  named after the product brand is used; with neither, the offer is skipped
+  (WARN in the logs).
 
-Konwencja: wpisy słowników nazywaj dokładnie tak, jak brzmi marka w feedzie
-(np. `NZXT`); wpis osoby odpowiedzialnej będący jedynym na liście działa jako
-domyślny dla wszystkich marek.
+Convention: name the dictionary entries exactly as the brand appears in the
+feed (e.g. `NZXT`); a responsible-person entry that is the only one on the
+list acts as the default for all brands.
 
-Parametry ofertowe 224017 (Kod producenta) i 237206 (Model) są dodawane tylko
-wtedy, gdy występują na liście parametrów kategorii produktu
+Offer parameters 224017 (manufacturer code) and 237206 (model) are added only
+when they appear on the parameter list of the product's category
 (`GET /sale/categories/{id}/parameters`).
 
 ## Testing on the Allegro Sandbox
