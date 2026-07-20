@@ -12,13 +12,28 @@ Checkout forms are fetched with `status=READY_FOR_PROCESSING` (per Allegro docum
 (ONLINE, WIRE_TRANSFER, SPLIT_PAYMENT, EXTENDED_TERM) `payment.finishedAt` is required.
 Cash-on-delivery orders (CASH_ON_DELIVERY) are imported — payment happens on delivery.
 
-## Integration configuration (form in the app)
+## Integration configuration (in-dashboard device flow)
 
-- `clientId` / `clientSecret` — an application from https://apps.developer.allegro.pl
-- `refreshToken` — one-time bootstrap: obtain it via the OAuth2 device flow (see
-  "Testing on the Allegro Sandbox", step 3; for production use the
-  `https://allegro.pl/auth/oauth` base). After saving the form the application
-  refreshes and rotates tokens automatically (access 12 h, refresh 3 months).
+Every store (client) uses its **own Allegro application**:
+
+1. Logged in as the store's Allegro seller account, register an application at
+   https://apps.developer.allegro.pl (device-flow type; scopes: orders read+write,
+   sale offers read+write). This is a one-time step per store.
+2. In the CommerceLink dashboard (store integrations → Allegro) enter the application's
+   `clientId` / `clientSecret` and save.
+3. Click **Connect with Allegro**: the dashboard shows an Allegro confirmation link —
+   open it logged in as the seller and confirm. The app polls Allegro in the background,
+   receives the refresh token and stores it itself (SSM). No token is ever typed or
+   copied by a human.
+
+From then on the application refreshes and rotates tokens automatically (access 12 h,
+refresh 3 months; every refresh issues a new refresh token which is persisted). If the
+connection is ever lost (consent revoked, 90-day idle expiry), reconnect with the same
+**Connect with Allegro** button.
+
+The descriptor declares the device endpoint via `AuthConfig.OAuth2.deviceAuthUrl`
+(`ALLEGRO_DEVICE_URL`, default `https://allegro.pl/auth/oauth/device`) — the dashboard
+flow is generic and works against the sandbox with the overrides listed below.
 
 ## Testing on the Allegro Sandbox
 
@@ -46,8 +61,11 @@ Cash-on-delivery orders (CASH_ON_DELIVERY) are imported — payment happens on d
    immediately mark the connection as lost.
 6. E2E in the application: run the app with
    `-DALLEGRO_API_URL=https://api.allegro.pl.allegrosandbox.pl`
-   `-DALLEGRO_TOKEN_URL=https://allegro.pl.allegrosandbox.pl/auth/oauth/token`,
-   connect the Allegro integration in the store settings and paste the refresh token.
+   `-DALLEGRO_TOKEN_URL=https://allegro.pl.allegrosandbox.pl/auth/oauth/token`
+   `-DALLEGRO_DEVICE_URL=https://allegro.pl.allegrosandbox.pl/auth/oauth/device`,
+   enter the sandbox application's `clientId`/`clientSecret` in the store integrations,
+   save, and click **Connect with Allegro** (confirm the link logged in as the sandbox
+   seller). The manual step-3 flow is only needed for the standalone smoke test (step 5).
    Note: the import listener (`MarketplaceOrdersImportEventListener`) runs only with
    `application.env=prod` — locally the import is verified by the smoke test.
 
