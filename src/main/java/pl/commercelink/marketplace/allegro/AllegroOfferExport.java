@@ -110,7 +110,8 @@ class AllegroOfferExport {
             return;
         }
         restApi.postWithAuthRetry("/sale/product-offers",
-                AllegroOfferRequest.createOffer(offer, shippingRatesId, responsibleProducerId,
+                AllegroOfferRequest.createOffer(offer, shippingRatesId,
+                        new AllegroOfferRequest.ResponsibleProducer(null, responsibleProducerId), null,
                         product.id(), images, missingRequiredParameters(offer, product, categoryParameters)),
                 Void.class);
     }

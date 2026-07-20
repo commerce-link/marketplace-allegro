@@ -82,7 +82,10 @@ class AllegroOfferWireFormatTest {
 
         // when
         String json = objectMapper.writeValueAsString(AllegroOfferRequest.createOffer(
-                offer, "rate-1", "rp-1", "prod-uuid",
+                offer, "rate-1",
+                new AllegroOfferRequest.ResponsibleProducer(null, "rp-1"),
+                new AllegroOfferRequest.ResponsiblePerson("person-1"),
+                "prod-uuid",
                 List.of("https://img.example/1.jpg"),
                 List.of(new AllegroOfferRequest.OfferParameter("224017", List.of("MC-1")),
                         new AllegroOfferRequest.OfferParameter("237206", List.of("MC-1")))));
@@ -90,6 +93,7 @@ class AllegroOfferWireFormatTest {
         // then
         assertEquals("""
                 {"productSet":[{"product":{"id":"prod-uuid"},\
+                "responsiblePerson":{"id":"person-1"},\
                 "responsibleProducer":{"id":"rp-1"},\
                 "safetyInformation":{"type":"TEXT","description":"Szczegółowe informacje o bezpieczeństwie produktu dostępne są u producenta."}}],\
                 "external":{"id":"PIM-123"},\
@@ -109,10 +113,41 @@ class AllegroOfferWireFormatTest {
 
         // when
         String json = objectMapper.writeValueAsString(AllegroOfferRequest.createOffer(
-                offer, "rate-1", "rp-1", "prod-uuid", List.of("https://img.example/1.jpg"), List.of()));
+                offer, "rate-1", new AllegroOfferRequest.ResponsibleProducer(null, "rp-1"), null,
+                "prod-uuid", List.of("https://img.example/1.jpg"), List.of()));
 
         // then
         assertFalse(json.contains("\"parameters\""));
+    }
+
+    @Test
+    void serializesDictionaryProducerWithTypeId() throws Exception {
+        // given
+        MarketplaceOffer offer = new MarketplaceOffer(
+                "PIM-123", "5901234567890", null, "NZXT", null, null, 149L, 10L, 3);
+
+        // when
+        String json = objectMapper.writeValueAsString(AllegroOfferRequest.createOffer(
+                offer, "rate-1", new AllegroOfferRequest.ResponsibleProducer("ID", "rp-dict"), null,
+                "prod-uuid", List.of("https://img.example/1.jpg"), List.of()));
+
+        // then
+        assertTrue(json.contains("\"responsibleProducer\":{\"type\":\"ID\",\"id\":\"rp-dict\"}"));
+    }
+
+    @Test
+    void createOfferOmitsResponsiblePersonWhenAbsent() throws Exception {
+        // given
+        MarketplaceOffer offer = new MarketplaceOffer(
+                "PIM-123", "5901234567890", null, null, null, null, 149L, 10L, 3);
+
+        // when
+        String json = objectMapper.writeValueAsString(AllegroOfferRequest.createOffer(
+                offer, "rate-1", new AllegroOfferRequest.ResponsibleProducer(null, "rp-1"), null,
+                "prod-uuid", List.of("https://img.example/1.jpg"), List.of()));
+
+        // then
+        assertFalse(json.contains("responsiblePerson"));
     }
 
     @Test
