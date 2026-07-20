@@ -66,6 +66,15 @@ class AllegroOfferExportTest {
                                 safetyProducerIds.stream().map(AllegroProductsResponse.SafetyProducer::new).toList())));
     }
 
+    private void stubCategoryParameters(String categoryId, String... parameterIds) {
+        when(restApi.fetchWithAuthRetry(eq("/sale/categories/" + categoryId + "/parameters"), anyMap(),
+                eq(AllegroCategoryParametersResponse.class)))
+                .thenReturn(new AllegroCategoryParametersResponse(
+                        java.util.Arrays.stream(parameterIds)
+                                .map(AllegroCategoryParametersResponse.CategoryParameter::new)
+                                .toList()));
+    }
+
     @Test
     void createsOfferWhenNotListedYet() {
         // given
@@ -100,6 +109,7 @@ class AllegroOfferExportTest {
         stubOffersPage();
         stubShippingRates();
         stubCatalogProduct("prod-uuid", "260001", List.of(), List.of("https://img/1.jpg"), List.of("rp-1"));
+        stubCategoryParameters("260001", "224017", "237206");
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
@@ -453,5 +463,80 @@ class AllegroOfferExportTest {
         assertEquals("1", paramsCaptor.getAllValues().get(1).get("offset"));
         verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
         verify(restApi, never()).patchWithAuthRetry(anyString(), any(), any());
+    }
+
+    @Test
+    void skipsModelParameterWhenCategoryDoesNotDefineIt() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        stubCatalogProduct("prod-uuid", "260049", List.of(), List.of("https://img/1.jpg"), List.of("rp-1"));
+        stubCategoryParameters("260049", "224017");
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+
+        // then
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/sale/product-offers"), captor.capture(), eq(Void.class));
+        AllegroOfferRequest request = (AllegroOfferRequest) captor.getValue();
+        assertEquals(List.of("224017"),
+                request.parameters().stream().map(AllegroOfferRequest.OfferParameter::id).toList());
+    }
+
+    @Test
+    void sendsNoExtraParametersWhenCategoryDefinesNone() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        stubCatalogProduct("prod-uuid", "260029", List.of(), List.of("https://img/1.jpg"), List.of("rp-1"));
+        stubCategoryParameters("260029");
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+
+        // then
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/sale/product-offers"), captor.capture(), eq(Void.class));
+        assertNull(((AllegroOfferRequest) captor.getValue()).parameters());
+    }
+
+    @Test
+    void fetchesCategoryParametersOnceForRepeatedCategory() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        stubCatalogProduct("prod-uuid", "260049", List.of(), List.of("https://img/1.jpg"), List.of("rp-1"));
+        stubCategoryParameters("260049", "224017", "237206");
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(
+                offer("PIM-1", "5901234567890", 149L, 10L),
+                offer("PIM-2", "5901234567891", 99L, 5L)), List.of());
+
+        // then
+        verify(restApi, times(1)).fetchWithAuthRetry(
+                eq("/sale/categories/260049/parameters"), anyMap(), eq(AllegroCategoryParametersResponse.class));
+        verify(restApi, times(2)).postWithAuthRetry(eq("/sale/product-offers"), any(), eq(Void.class));
+    }
+
+    @Test
+    void sendsNoExtraParametersWhenProductHasNoCategory() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        stubCatalogProduct("prod-uuid", null, List.of(), List.of("https://img/1.jpg"), List.of("rp-1"));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+
+        // then
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/sale/product-offers"), captor.capture(), eq(Void.class));
+        assertNull(((AllegroOfferRequest) captor.getValue()).parameters());
     }
 }

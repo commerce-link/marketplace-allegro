@@ -46,11 +46,12 @@ class AllegroOfferExport {
             }
         }
 
+        Map<String, Set<String>> categoryParameters = new HashMap<>();
         for (MarketplaceOffer offer : toPublish) {
             AllegroOffersResponse.OfferSummary current = existing.get(offer.productId());
             try {
                 if (current == null) {
-                    createOffer(offer, shippingRatesId);
+                    createOffer(offer, shippingRatesId, categoryParameters);
                 } else if (needsUpdate(offer, current)) {
                     restApi.patchWithAuthRetry("/sale/product-offers/" + current.id(),
                             AllegroOfferRequest.updateOffer(offer), Void.class);
@@ -74,7 +75,7 @@ class AllegroOfferExport {
         }
     }
 
-    private void createOffer(MarketplaceOffer offer, String shippingRatesId) {
+    private void createOffer(MarketplaceOffer offer, String shippingRatesId, Map<String, Set<String>> categoryParameters) {
         if (offer.quantity() <= 0) {
             return;
         }
@@ -110,7 +111,7 @@ class AllegroOfferExport {
         }
         restApi.postWithAuthRetry("/sale/product-offers",
                 AllegroOfferRequest.createOffer(offer, shippingRatesId, responsibleProducerId,
-                        product.id(), images, missingRequiredParameters(offer, product)),
+                        product.id(), images, missingRequiredParameters(offer, product, categoryParameters)),
                 Void.class);
     }
 
@@ -138,7 +139,8 @@ class AllegroOfferExport {
     }
 
     private List<AllegroOfferRequest.OfferParameter> missingRequiredParameters(
-            MarketplaceOffer offer, AllegroProductsResponse.CatalogProduct product) {
+            MarketplaceOffer offer, AllegroProductsResponse.CatalogProduct product,
+            Map<String, Set<String>> categoryParametersCache) {
         if (offer.manufacturerCode() == null || offer.manufacturerCode().isBlank()) {
             return List.of();
         }
@@ -148,12 +150,29 @@ class AllegroOfferExport {
                         .collect(Collectors.toSet());
         List<AllegroOfferRequest.OfferParameter> result = new ArrayList<>();
         for (String parameterId : List.of(PARAM_MANUFACTURER_CODE, PARAM_MODEL)) {
-            if (!productParameterIds.contains(parameterId)) {
+            if (!productParameterIds.contains(parameterId)
+                    && categoryParameterIds(product, categoryParametersCache).contains(parameterId)) {
                 result.add(new AllegroOfferRequest.OfferParameter(
                         parameterId, List.of(offer.manufacturerCode())));
             }
         }
         return result;
+    }
+
+    private Set<String> categoryParameterIds(AllegroProductsResponse.CatalogProduct product,
+                                             Map<String, Set<String>> cache) {
+        if (product.category() == null || product.category().id() == null) {
+            return Set.of();
+        }
+        return cache.computeIfAbsent(product.category().id(), categoryId -> {
+            AllegroCategoryParametersResponse response = restApi.fetchWithAuthRetry(
+                    "/sale/categories/" + categoryId + "/parameters", Map.of(),
+                    AllegroCategoryParametersResponse.class);
+            return response.parameters() == null ? Set.of()
+                    : response.parameters().stream()
+                            .map(AllegroCategoryParametersResponse.CategoryParameter::id)
+                            .collect(Collectors.toSet());
+        });
     }
 
     private String firstShippingRatesId() {
