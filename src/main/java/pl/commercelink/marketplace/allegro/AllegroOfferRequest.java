@@ -24,12 +24,15 @@ record AllegroOfferRequest(
     private static final String SAFETY_TEXT = "Szczegółowe informacje o bezpieczeństwie produktu dostępne są u producenta.";
 
     static AllegroOfferRequest createOffer(MarketplaceOffer offer, String shippingRatesId,
-                                           String responsibleProducerId, String productId,
-                                           List<String> images, List<OfferParameter> parameters) {
+                                           ResponsibleProducer responsibleProducer,
+                                           ResponsiblePerson responsiblePerson,
+                                           String productId, List<String> images,
+                                           List<OfferParameter> parameters) {
         return new AllegroOfferRequest(
                 List.of(new ProductSetItem(
                         new Product(productId),
-                        new ResponsibleProducer(responsibleProducerId),
+                        responsiblePerson,
+                        responsibleProducer,
                         new SafetyInformation(SAFETY_TYPE_TEXT, SAFETY_TEXT))),
                 new External(offer.productId()),
                 sellingMode(offer),
@@ -64,13 +67,19 @@ record AllegroOfferRequest(
         return new Stock(offer.quantity(), STOCK_UNIT);
     }
 
-    record ProductSetItem(Product product, ResponsibleProducer responsibleProducer, SafetyInformation safetyInformation) {
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    record ProductSetItem(Product product, ResponsiblePerson responsiblePerson,
+                          ResponsibleProducer responsibleProducer, SafetyInformation safetyInformation) {
     }
 
     record Product(String id) {
     }
 
-    record ResponsibleProducer(String id) {
+    record ResponsiblePerson(String id) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    record ResponsibleProducer(String type, String id) {
     }
 
     record SafetyInformation(String type, String description) {

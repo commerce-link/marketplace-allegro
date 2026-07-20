@@ -36,6 +36,30 @@ The descriptor declares the device endpoint via `AuthConfig.OAuth2.deviceAuthUrl
 flow is generic and works against the sandbox with the overrides listed below.
 
 
+## GPSR — responsible person and producer
+
+The offer export uses the Allegro account dictionaries (defined in the panel:
+My Allegro → Sales settings, or via the `/sale/responsible-persons` and
+`/sale/responsible-producers` API):
+
+- **Responsible person** (`productSet[0].responsiblePerson`, required by
+  Allegro for producers from outside the EU): selected by the entry name
+  equal to the product brand (case-insensitive); when there is no match and
+  the list contains exactly one entry, that entry is used; otherwise the
+  offer is sent without a responsible person.
+- **Responsible producer**: the producer from the Allegro catalog product
+  page is preferred; when the catalog has none, the account dictionary entry
+  named after the product brand is used; with neither, the offer is skipped
+  (WARN in the logs).
+
+Convention: name the dictionary entries exactly as the brand appears in the
+feed (e.g. `NZXT`); a responsible-person entry that is the only one on the
+list acts as the default for all brands.
+
+Offer parameters 224017 (manufacturer code) and 237206 (model) are added only
+when they appear on the parameter list of the product's category
+(`GET /sale/categories/{id}/parameters`).
+
 ## Testing on the Allegro Sandbox
 
 1. Create TWO free accounts at https://allegro.pl.allegrosandbox.pl (seller + buyer);

@@ -82,7 +82,10 @@ class AllegroOfferWireFormatTest {
 
         // when
         String json = objectMapper.writeValueAsString(AllegroOfferRequest.createOffer(
-                offer, "rate-1", "rp-1", "prod-uuid",
+                offer, "rate-1",
+                new AllegroOfferRequest.ResponsibleProducer(null, "rp-1"),
+                new AllegroOfferRequest.ResponsiblePerson("person-1"),
+                "prod-uuid",
                 List.of("https://img.example/1.jpg"),
                 List.of(new AllegroOfferRequest.OfferParameter("224017", List.of("MC-1")),
                         new AllegroOfferRequest.OfferParameter("237206", List.of("MC-1")))));
@@ -90,6 +93,7 @@ class AllegroOfferWireFormatTest {
         // then
         assertEquals("""
                 {"productSet":[{"product":{"id":"prod-uuid"},\
+                "responsiblePerson":{"id":"person-1"},\
                 "responsibleProducer":{"id":"rp-1"},\
                 "safetyInformation":{"type":"TEXT","description":"Szczegółowe informacje o bezpieczeństwie produktu dostępne są u producenta."}}],\
                 "external":{"id":"PIM-123"},\
@@ -109,10 +113,41 @@ class AllegroOfferWireFormatTest {
 
         // when
         String json = objectMapper.writeValueAsString(AllegroOfferRequest.createOffer(
-                offer, "rate-1", "rp-1", "prod-uuid", List.of("https://img.example/1.jpg"), List.of()));
+                offer, "rate-1", new AllegroOfferRequest.ResponsibleProducer(null, "rp-1"), null,
+                "prod-uuid", List.of("https://img.example/1.jpg"), List.of()));
 
         // then
         assertFalse(json.contains("\"parameters\""));
+    }
+
+    @Test
+    void serializesDictionaryProducerWithTypeId() throws Exception {
+        // given
+        MarketplaceOffer offer = new MarketplaceOffer(
+                "PIM-123", "5901234567890", null, "NZXT", null, null, 149L, 10L, 3);
+
+        // when
+        String json = objectMapper.writeValueAsString(AllegroOfferRequest.createOffer(
+                offer, "rate-1", new AllegroOfferRequest.ResponsibleProducer("ID", "rp-dict"), null,
+                "prod-uuid", List.of("https://img.example/1.jpg"), List.of()));
+
+        // then
+        assertTrue(json.contains("\"responsibleProducer\":{\"type\":\"ID\",\"id\":\"rp-dict\"}"));
+    }
+
+    @Test
+    void createOfferOmitsResponsiblePersonWhenAbsent() throws Exception {
+        // given
+        MarketplaceOffer offer = new MarketplaceOffer(
+                "PIM-123", "5901234567890", null, null, null, null, 149L, 10L, 3);
+
+        // when
+        String json = objectMapper.writeValueAsString(AllegroOfferRequest.createOffer(
+                offer, "rate-1", new AllegroOfferRequest.ResponsibleProducer(null, "rp-1"), null,
+                "prod-uuid", List.of("https://img.example/1.jpg"), List.of()));
+
+        // then
+        assertFalse(json.contains("responsiblePerson"));
     }
 
     @Test
@@ -182,5 +217,88 @@ class AllegroOfferWireFormatTest {
 
         // then
         assertEquals("{\"publication\":{\"status\":\"ENDED\"}}", json);
+    }
+
+    @Test
+    void deserializesProductCategoryFromCatalogProduct() throws Exception {
+        // given
+        String json = """
+                {
+                  "id": "prod-uuid",
+                  "category": {"id": "260049", "path": [{"id": "3", "name": "Komputery"}]},
+                  "parameters": [],
+                  "images": []
+                }
+                """;
+
+        // when
+        AllegroProductsResponse.CatalogProduct product =
+                objectMapper.readValue(json, AllegroProductsResponse.CatalogProduct.class);
+
+        // then
+        assertEquals("260049", product.category().id());
+    }
+
+    @Test
+    void deserializesCategoryParametersList() throws Exception {
+        // given
+        String json = """
+                {
+                  "parameters": [
+                    {"id": "224017", "name": "Kod producenta", "type": "string", "required": false},
+                    {"id": "11323", "name": "Stan", "type": "dictionary", "required": true}
+                  ]
+                }
+                """;
+
+        // when
+        AllegroCategoryParametersResponse response =
+                objectMapper.readValue(json, AllegroCategoryParametersResponse.class);
+
+        // then
+        assertEquals(List.of("224017", "11323"),
+                response.parameters().stream().map(AllegroCategoryParametersResponse.CategoryParameter::id).toList());
+    }
+
+    @Test
+    void deserializesResponsiblePersonsList() throws Exception {
+        // given
+        String json = """
+                {
+                  "responsiblePersons": [
+                    {"id": "p-1", "name": "NZXT", "personalData": {"name": "NZXT Europe GmbH"}}
+                  ],
+                  "count": 1
+                }
+                """;
+
+        // when
+        AllegroResponsiblePersonsResponse response =
+                objectMapper.readValue(json, AllegroResponsiblePersonsResponse.class);
+
+        // then
+        assertEquals("p-1", response.responsiblePersons().get(0).id());
+        assertEquals("NZXT", response.responsiblePersons().get(0).name());
+    }
+
+    @Test
+    void deserializesResponsibleProducersList() throws Exception {
+        // given
+        String json = """
+                {
+                  "responsibleProducers": [
+                    {"id": "rp-1", "name": "NZXT", "producerData": {"tradeName": "NZXT Inc."}}
+                  ],
+                  "count": 1
+                }
+                """;
+
+        // when
+        AllegroResponsibleProducersResponse response =
+                objectMapper.readValue(json, AllegroResponsibleProducersResponse.class);
+
+        // then
+        assertEquals("rp-1", response.responsibleProducers().get(0).id());
+        assertEquals("NZXT", response.responsibleProducers().get(0).name());
     }
 }
