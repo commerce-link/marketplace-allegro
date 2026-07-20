@@ -48,8 +48,13 @@
         </dependency>
         <dependency>
             <groupId>pl.commercelink</groupId>
+            <artifactId>provider-api</artifactId>
+            <version>0.1.6</version>
+        </dependency>
+        <dependency>
+            <groupId>pl.commercelink</groupId>
             <artifactId>rest-client</artifactId>
-            <version>0.1.4</version>
+            <version>0.1.5</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
