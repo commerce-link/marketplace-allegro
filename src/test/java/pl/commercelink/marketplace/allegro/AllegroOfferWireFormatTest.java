@@ -224,4 +224,46 @@ class AllegroOfferWireFormatTest {
         assertEquals(List.of("224017", "11323"),
                 response.parameters().stream().map(AllegroCategoryParametersResponse.CategoryParameter::id).toList());
     }
+
+    @Test
+    void deserializesResponsiblePersonsList() throws Exception {
+        // given
+        String json = """
+                {
+                  "responsiblePersons": [
+                    {"id": "p-1", "name": "NZXT", "personalData": {"name": "NZXT Europe GmbH"}}
+                  ],
+                  "count": 1
+                }
+                """;
+
+        // when
+        AllegroResponsiblePersonsResponse response =
+                objectMapper.readValue(json, AllegroResponsiblePersonsResponse.class);
+
+        // then
+        assertEquals("p-1", response.responsiblePersons().get(0).id());
+        assertEquals("NZXT", response.responsiblePersons().get(0).name());
+    }
+
+    @Test
+    void deserializesResponsibleProducersList() throws Exception {
+        // given
+        String json = """
+                {
+                  "responsibleProducers": [
+                    {"id": "rp-1", "name": "NZXT", "producerData": {"tradeName": "NZXT Inc."}}
+                  ],
+                  "count": 1
+                }
+                """;
+
+        // when
+        AllegroResponsibleProducersResponse response =
+                objectMapper.readValue(json, AllegroResponsibleProducersResponse.class);
+
+        // then
+        assertEquals("rp-1", response.responsibleProducers().get(0).id());
+        assertEquals("NZXT", response.responsibleProducers().get(0).name());
+    }
 }
