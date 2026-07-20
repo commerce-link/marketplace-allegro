@@ -8,7 +8,11 @@ import java.util.List;
 record AllegroProductsResponse(List<CatalogProduct> products) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record CatalogProduct(String id, List<Parameter> parameters, List<Image> images, ProductSafety productSafety) {
+    record CatalogProduct(String id, Category category, List<Parameter> parameters, List<Image> images, ProductSafety productSafety) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Category(String id) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

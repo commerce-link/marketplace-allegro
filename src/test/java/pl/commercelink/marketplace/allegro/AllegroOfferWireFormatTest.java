@@ -183,4 +183,45 @@ class AllegroOfferWireFormatTest {
         // then
         assertEquals("{\"publication\":{\"status\":\"ENDED\"}}", json);
     }
+
+    @Test
+    void deserializesProductCategoryFromCatalogProduct() throws Exception {
+        // given
+        String json = """
+                {
+                  "id": "prod-uuid",
+                  "category": {"id": "260049", "path": [{"id": "3", "name": "Komputery"}]},
+                  "parameters": [],
+                  "images": []
+                }
+                """;
+
+        // when
+        AllegroProductsResponse.CatalogProduct product =
+                objectMapper.readValue(json, AllegroProductsResponse.CatalogProduct.class);
+
+        // then
+        assertEquals("260049", product.category().id());
+    }
+
+    @Test
+    void deserializesCategoryParametersList() throws Exception {
+        // given
+        String json = """
+                {
+                  "parameters": [
+                    {"id": "224017", "name": "Kod producenta", "type": "string", "required": false},
+                    {"id": "11323", "name": "Stan", "type": "dictionary", "required": true}
+                  ]
+                }
+                """;
+
+        // when
+        AllegroCategoryParametersResponse response =
+                objectMapper.readValue(json, AllegroCategoryParametersResponse.class);
+
+        // then
+        assertEquals(List.of("224017", "11323"),
+                response.parameters().stream().map(AllegroCategoryParametersResponse.CategoryParameter::id).toList());
+    }
 }
