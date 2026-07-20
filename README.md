@@ -20,6 +20,30 @@ Cash-on-delivery orders (CASH_ON_DELIVERY) are imported — payment happens on d
   `https://allegro.pl/auth/oauth` base). After saving the form the application
   refreshes and rotates tokens automatically (access 12 h, refresh 3 months).
 
+## GPSR — osoba odpowiedzialna i producent
+
+Eksport ofert korzysta ze słowników konta Allegro (definiowanych w panelu:
+Moje Allegro → Ustawienia sprzedaży, lub przez API `/sale/responsible-persons`
+i `/sale/responsible-producers`):
+
+- **Osoba odpowiedzialna** (`productSet[0].responsiblePerson`, wymagana przez
+  Allegro dla producentów spoza UE): wybierana po nazwie wpisu równej marce
+  produktu (bez rozróżniania wielkości liter); gdy brak dopasowania, a na
+  liście jest dokładnie jeden wpis — używany jest ten wpis; w przeciwnym razie
+  oferta wysyłana jest bez osoby odpowiedzialnej.
+- **Producent odpowiedzialny**: preferowany jest producent z karty produktu w
+  katalogu Allegro; gdy katalog go nie ma, używany jest wpis słownika konta
+  o nazwie równej marce produktu; bez żadnego z nich oferta jest pomijana
+  (WARN w logach).
+
+Konwencja: wpisy słowników nazywaj dokładnie tak, jak brzmi marka w feedzie
+(np. `NZXT`); wpis osoby odpowiedzialnej będący jedynym na liście działa jako
+domyślny dla wszystkich marek.
+
+Parametry ofertowe 224017 (Kod producenta) i 237206 (Model) są dodawane tylko
+wtedy, gdy występują na liście parametrów kategorii produktu
+(`GET /sale/categories/{id}/parameters`).
+
 ## Testing on the Allegro Sandbox
 
 1. Create TWO free accounts at https://allegro.pl.allegrosandbox.pl (seller + buyer);
