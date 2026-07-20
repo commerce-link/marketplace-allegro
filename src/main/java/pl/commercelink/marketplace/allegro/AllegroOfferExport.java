@@ -46,12 +46,13 @@ class AllegroOfferExport {
             }
         }
 
+        AllegroGpsrDictionaries gpsr = new AllegroGpsrDictionaries(restApi);
         Map<String, Set<String>> categoryParameters = new HashMap<>();
         for (MarketplaceOffer offer : toPublish) {
             AllegroOffersResponse.OfferSummary current = existing.get(offer.productId());
             try {
                 if (current == null) {
-                    createOffer(offer, shippingRatesId, categoryParameters);
+                    createOffer(offer, shippingRatesId, categoryParameters, gpsr);
                 } else if (needsUpdate(offer, current)) {
                     restApi.patchWithAuthRetry("/sale/product-offers/" + current.id(),
                             AllegroOfferRequest.updateOffer(offer), Void.class);
@@ -75,7 +76,8 @@ class AllegroOfferExport {
         }
     }
 
-    private void createOffer(MarketplaceOffer offer, String shippingRatesId, Map<String, Set<String>> categoryParameters) {
+    private void createOffer(MarketplaceOffer offer, String shippingRatesId, Map<String, Set<String>> categoryParameters,
+                              AllegroGpsrDictionaries gpsr) {
         if (offer.quantity() <= 0) {
             return;
         }
@@ -102,27 +104,36 @@ class AllegroOfferExport {
                     offer.productId(), product.id());
             return;
         }
-        String responsibleProducerId = resolveResponsibleProducerId(product);
-        if (responsibleProducerId == null) {
+        AllegroOfferRequest.ResponsibleProducer responsibleProducer =
+                resolveResponsibleProducer(product, gpsr, offer);
+        if (responsibleProducer == null) {
             LOGGER.log(System.Logger.Level.WARNING,
-                    "Skipping Allegro offer create for {0}: catalog product {1} has no responsible producer",
-                    offer.productId(), product.id());
+                    "Skipping Allegro offer create for {0}: catalog product {1} has no responsible producer"
+                            + " and account dictionary has no entry named \"{2}\"",
+                    offer.productId(), product.id(), offer.brand());
             return;
         }
+        AllegroOfferRequest.ResponsiblePerson responsiblePerson = gpsr.responsiblePersonId(offer.brand())
+                .map(AllegroOfferRequest.ResponsiblePerson::new)
+                .orElse(null);
         restApi.postWithAuthRetry("/sale/product-offers",
-                AllegroOfferRequest.createOffer(offer, shippingRatesId,
-                        new AllegroOfferRequest.ResponsibleProducer(null, responsibleProducerId), null,
+                AllegroOfferRequest.createOffer(offer, shippingRatesId, responsibleProducer, responsiblePerson,
                         product.id(), images, missingRequiredParameters(offer, product, categoryParameters)),
                 Void.class);
     }
 
-    private String resolveResponsibleProducerId(AllegroProductsResponse.CatalogProduct product) {
-        if (product.productSafety() == null
-                || product.productSafety().responsibleProducers() == null
-                || product.productSafety().responsibleProducers().isEmpty()) {
-            return null;
+    private AllegroOfferRequest.ResponsibleProducer resolveResponsibleProducer(
+            AllegroProductsResponse.CatalogProduct product, AllegroGpsrDictionaries gpsr,
+            MarketplaceOffer offer) {
+        if (product.productSafety() != null
+                && product.productSafety().responsibleProducers() != null
+                && !product.productSafety().responsibleProducers().isEmpty()) {
+            return new AllegroOfferRequest.ResponsibleProducer(
+                    null, product.productSafety().responsibleProducers().get(0).id());
         }
-        return product.productSafety().responsibleProducers().get(0).id();
+        return gpsr.responsibleProducerId(offer.brand())
+                .map(id -> new AllegroOfferRequest.ResponsibleProducer("ID", id))
+                .orElse(null);
     }
 
     private AllegroProductsResponse.CatalogProduct findCatalogProduct(String ean) {
