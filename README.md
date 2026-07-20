@@ -21,19 +21,20 @@ Every store (client) uses its **own Allegro application**:
    sale offers read+write). This is a one-time step per store.
 2. In the CommerceLink dashboard (store integrations → Allegro) enter the application's
    `clientId` / `clientSecret` and save.
-3. Click **Connect with Allegro**: the dashboard shows an Allegro confirmation link —
-   open it logged in as the seller and confirm. The app polls Allegro in the background,
-   receives the refresh token and stores it itself (SSM). No token is ever typed or
-   copied by a human.
+3. Click **Authorize** on the integration row: a new tab opens with the Allegro
+   confirmation page — confirm it logged in as the seller. The app polls Allegro in
+   the background, receives the refresh token and stores it itself (SSM). No token
+   is ever typed or copied by a human.
 
 From then on the application refreshes and rotates tokens automatically (access 12 h,
 refresh 3 months; every refresh issues a new refresh token which is persisted). If the
-connection is ever lost (consent revoked, 90-day idle expiry), reconnect with the same
-**Connect with Allegro** button.
+connection is ever lost (consent revoked, 90-day idle expiry), the **Authorize**
+button reappears on the integration row — reconnect with a single click.
 
 The descriptor declares the device endpoint via `AuthConfig.OAuth2.deviceAuthUrl`
 (`ALLEGRO_DEVICE_URL`, default `https://allegro.pl/auth/oauth/device`) — the dashboard
 flow is generic and works against the sandbox with the overrides listed below.
+
 
 ## Testing on the Allegro Sandbox
 
@@ -64,7 +65,7 @@ flow is generic and works against the sandbox with the overrides listed below.
    `-DALLEGRO_TOKEN_URL=https://allegro.pl.allegrosandbox.pl/auth/oauth/token`
    `-DALLEGRO_DEVICE_URL=https://allegro.pl.allegrosandbox.pl/auth/oauth/device`,
    enter the sandbox application's `clientId`/`clientSecret` in the store integrations,
-   save, and click **Connect with Allegro** (confirm the link logged in as the sandbox
+   save, and click **Authorize** (confirm the opened page logged in as the sandbox
    seller). The manual step-3 flow is only needed for the standalone smoke test (step 5).
    Note: the import listener (`MarketplaceOrdersImportEventListener`) runs only with
    `application.env=prod` — locally the import is verified by the smoke test.
