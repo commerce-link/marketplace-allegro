@@ -21,6 +21,7 @@ class AllegroMarketplaceProviderDescriptorTest {
     void clearOverrides() {
         System.clearProperty("ALLEGRO_API_URL");
         System.clearProperty("ALLEGRO_TOKEN_URL");
+        System.clearProperty("ALLEGRO_DEVICE_URL");
     }
 
     @Test
@@ -44,22 +45,20 @@ class AllegroMarketplaceProviderDescriptorTest {
     }
 
     @Test
-    void exposesClientIdSecretAndRefreshTokenFields() {
-        // given
+    void exposesOnlyClientIdAndSecretFields() {
+        // given: refresh token is obtained via the in-dashboard device flow, not typed into the form
         AllegroMarketplaceProviderDescriptor descriptor = new AllegroMarketplaceProviderDescriptor();
 
         // when
         List<ProviderField> fields = descriptor.configurationFields();
 
         // then
-        assertEquals(3, fields.size());
+        assertEquals(2, fields.size());
         assertEquals("clientId", fields.get(0).key());
         assertEquals(ProviderField.FieldType.TEXT, fields.get(0).type());
         assertTrue(fields.get(0).required());
         assertEquals("clientSecret", fields.get(1).key());
         assertEquals(ProviderField.FieldType.PASSWORD, fields.get(1).type());
-        assertEquals("refreshToken", fields.get(2).key());
-        assertEquals(ProviderField.FieldType.PASSWORD, fields.get(2).type());
     }
 
     @Test
@@ -76,8 +75,9 @@ class AllegroMarketplaceProviderDescriptorTest {
         assertEquals("https://allegro.pl/auth/oauth/token", authConfig.refreshEndpointPath());
         assertEquals(90L * 24 * 60 * 60, authConfig.refreshTokenExpirationSeconds());
         assertEquals("application/vnd.allegro.public.v1+json", authConfig.acceptHeader());
-        assertEquals("refreshToken", authConfig.refreshTokenFieldKey());
+        assertNull(authConfig.refreshTokenFieldKey());
         assertEquals(AllegroMarketplaceProviderDescriptor.ACCEPT_HEADER, authConfig.contentTypeHeader());
+        assertEquals("https://allegro.pl/auth/oauth/device", authConfig.deviceAuthUrl());
     }
 
     @Test
@@ -85,6 +85,7 @@ class AllegroMarketplaceProviderDescriptorTest {
         // given
         System.setProperty("ALLEGRO_API_URL", "https://api.allegro.pl.allegrosandbox.pl");
         System.setProperty("ALLEGRO_TOKEN_URL", "https://allegro.pl.allegrosandbox.pl/auth/oauth/token");
+        System.setProperty("ALLEGRO_DEVICE_URL", "https://allegro.pl.allegrosandbox.pl/auth/oauth/device");
         AllegroMarketplaceProviderDescriptor descriptor = new AllegroMarketplaceProviderDescriptor();
 
         // when
@@ -93,6 +94,7 @@ class AllegroMarketplaceProviderDescriptorTest {
         // then
         assertEquals("https://api.allegro.pl.allegrosandbox.pl", authConfig.apiUrl());
         assertEquals("https://allegro.pl.allegrosandbox.pl/auth/oauth/token", authConfig.authEndpointPath());
+        assertEquals("https://allegro.pl.allegrosandbox.pl/auth/oauth/device", authConfig.deviceAuthUrl());
     }
 
     @Test

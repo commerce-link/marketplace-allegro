@@ -14,6 +14,7 @@ public class AllegroMarketplaceProviderDescriptor implements MarketplaceProvider
 
     static final String DEFAULT_API_URL = "https://api.allegro.pl";
     static final String DEFAULT_TOKEN_URL = "https://allegro.pl/auth/oauth/token";
+    static final String DEFAULT_DEVICE_URL = "https://allegro.pl/auth/oauth/device";
     static final String ACCEPT_HEADER = "application/vnd.allegro.public.v1+json";
 
     @Override
@@ -30,8 +31,7 @@ public class AllegroMarketplaceProviderDescriptor implements MarketplaceProvider
     public List<ProviderField> configurationFields() {
         return List.of(
                 new ProviderField("clientId", "Client ID", ProviderField.FieldType.TEXT, true, "Client ID"),
-                new ProviderField("clientSecret", "Client Secret", ProviderField.FieldType.PASSWORD, true, "******"),
-                new ProviderField("refreshToken", "Refresh Token", ProviderField.FieldType.PASSWORD, true, "******"));
+                new ProviderField("clientSecret", "Client Secret", ProviderField.FieldType.PASSWORD, true, "******"));
     }
 
     @Override
@@ -55,8 +55,9 @@ public class AllegroMarketplaceProviderDescriptor implements MarketplaceProvider
                 tokenUrl,
                 90L * 24 * 60 * 60,
                 ACCEPT_HEADER,
-                "refreshToken",
-                ACCEPT_HEADER);
+                null,
+                ACCEPT_HEADER,
+                resolve("ALLEGRO_DEVICE_URL", DEFAULT_DEVICE_URL));
     }
 
     private static String resolve(String key, String defaultValue) {
