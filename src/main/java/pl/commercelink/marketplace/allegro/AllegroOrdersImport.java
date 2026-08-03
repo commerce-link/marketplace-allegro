@@ -87,7 +87,8 @@ class AllegroOrdersImport {
                 products,
                 new BigDecimal(form.delivery().cost().amount()),
                 resolvePaymentType(form.payment().type()),
-                form.payment().id());
+                form.payment().id(),
+                resolveDeliveryCarrier(form.delivery()));
     }
 
     private String resolveManufacturerCode(AllegroCheckoutForm.Offer offer) {
@@ -168,7 +169,16 @@ class AllegroOrdersImport {
                 pointAddress != null && pointAddress.zipCode() != null ? pointAddress.zipCode() : address.zipCode(),
                 pointAddress != null && pointAddress.city() != null ? pointAddress.city() : address.city(),
                 address.countryCode(),
-                new MarketplaceCustomer.PickupPoint(pickupPoint.id(), pickupPoint.name()));
+                new MarketplaceCustomer.PickupPoint(pickupPoint.id(), pickupPoint.name(), resolveDeliveryCarrier(delivery)));
+    }
+
+    private String resolveDeliveryCarrier(AllegroCheckoutForm.Delivery delivery) {
+        AllegroCheckoutForm.Method method = delivery.method();
+        if (method == null) {
+            return null;
+        }
+        AllegroCarrier carrier = AllegroCarrier.fromCarrierName(method.name());
+        return carrier != null ? carrier.carrierId() : null;
     }
 
     private MarketplaceCustomer.Address toPlainDeliveryAddress(AllegroCheckoutForm.DeliveryAddress address) {

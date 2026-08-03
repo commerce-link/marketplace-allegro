@@ -305,6 +305,58 @@ class AllegroOrdersImportTest {
     }
 
     @Test
+    void resolvesPointOperatorFromDeliveryMethodName() {
+        // given
+        AllegroCheckoutForm pickup = new AllegroCheckoutForm("o-6a", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-6a", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                new AllegroCheckoutForm.Delivery(
+                        paidForm("x").delivery().address(),
+                        paidForm("x").delivery().cost(),
+                        new AllegroCheckoutForm.PickupPoint("ALP123", "Paczkomat ALP123",
+                                new AllegroCheckoutForm.PickupPointAddress("Prosta 1", "00-001", "Warszawa")),
+                        new AllegroCheckoutForm.Method("m-1", "InPost Paczkomaty 24/7")),
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(pickup), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals("INPOST", orders.get(0).customer().shippingAddress().pickupPoint().operator());
+    }
+
+    @Test
+    void leavesPointOperatorNullWhenDeliveryMethodIsUnknown() {
+        // given
+        AllegroCheckoutForm pickup = new AllegroCheckoutForm("o-6b", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-6b", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                new AllegroCheckoutForm.Delivery(
+                        paidForm("x").delivery().address(),
+                        paidForm("x").delivery().cost(),
+                        new AllegroCheckoutForm.PickupPoint("ALP123", "Paczkomat ALP123",
+                                new AllegroCheckoutForm.PickupPointAddress("Prosta 1", "00-001", "Warszawa")),
+                        new AllegroCheckoutForm.Method("m-2", "Kurier XYZ")),
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(pickup), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertNull(orders.get(0).customer().shippingAddress().pickupPoint().operator());
+    }
+
+    @Test
     void individualBillingAddressIsHomeAddressNotPickupPoint() {
         // given: pickup-point order (delivery.address = home, delivery.pickupPoint set), no invoice
         AllegroCheckoutForm pickup = new AllegroCheckoutForm("o-13", "READY_FOR_PROCESSING",
