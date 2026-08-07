@@ -25,7 +25,7 @@ class AllegroOrdersImport {
         this.restApi = restApi;
     }
 
-    List<MarketplaceOrder> fetchOrders() {
+    List<MarketplaceOrder<AllegroCarrier>> fetchOrders() {
         List<AllegroCheckoutForm> forms = new ArrayList<>();
         int offset = 0;
         AllegroCheckoutFormsResponse response;
@@ -71,7 +71,7 @@ class AllegroOrdersImport {
         return payment.finishedAt() != null;
     }
 
-    private MarketplaceOrder toMarketplaceOrder(AllegroCheckoutForm form) {
+    private MarketplaceOrder<AllegroCarrier> toMarketplaceOrder(AllegroCheckoutForm form) {
         List<MarketplaceProduct> products = form.lineItems().stream()
                 .map(item -> new MarketplaceProduct(
                         item.offer().name(),
@@ -81,7 +81,7 @@ class AllegroOrdersImport {
                         BigDecimal.ZERO))
                 .toList();
 
-        return new MarketplaceOrder(
+        return new MarketplaceOrder<>(
                 form.id(),
                 toMarketplaceCustomer(form),
                 products,
@@ -169,16 +169,15 @@ class AllegroOrdersImport {
                 pointAddress != null && pointAddress.zipCode() != null ? pointAddress.zipCode() : address.zipCode(),
                 pointAddress != null && pointAddress.city() != null ? pointAddress.city() : address.city(),
                 address.countryCode(),
-                new MarketplaceCustomer.PickupPoint(pickupPoint.id(), pickupPoint.name(), resolveDeliveryCarrier(delivery)));
+                new MarketplaceCustomer.PickupPoint(pickupPoint.id(), pickupPoint.name()));
     }
 
-    private String resolveDeliveryCarrier(AllegroCheckoutForm.Delivery delivery) {
+    private AllegroCarrier resolveDeliveryCarrier(AllegroCheckoutForm.Delivery delivery) {
         AllegroCheckoutForm.Method method = delivery.method();
         if (method == null) {
             return null;
         }
-        AllegroCarrier carrier = AllegroCarrier.fromCarrierName(method.name());
-        return carrier != null ? carrier.carrierId() : null;
+        return AllegroCarrier.fromCarrierName(method.name());
     }
 
     private MarketplaceCustomer.Address toPlainDeliveryAddress(AllegroCheckoutForm.DeliveryAddress address) {

@@ -35,12 +35,12 @@ public class AllegroMarketplaceProviderDescriptor implements MarketplaceProvider
     }
 
     @Override
-    public MarketplaceProvider create(Map<String, String> configuration) {
+    public MarketplaceProvider<?> create(Map<String, String> configuration) {
         throw new UnsupportedOperationException("Use create(configuration, context) instead");
     }
 
     @Override
-    public MarketplaceProvider create(Map<String, String> configuration, Map<String, Object> context) {
+    public MarketplaceProvider<?> create(Map<String, String> configuration, Map<String, Object> context) {
         RestApiWithRetry restApi = (RestApiWithRetry) Objects.requireNonNull(
                 context.get("restApi"), "restApi missing in provider context");
         return new AllegroMarketplaceProvider(restApi);

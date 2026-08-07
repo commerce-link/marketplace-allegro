@@ -51,7 +51,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals(1, orders.size());
@@ -74,7 +74,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals(1, orders.size());
@@ -94,7 +94,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals(1, orders.size());
@@ -115,7 +115,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals(101, orders.size());
@@ -138,7 +138,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        MarketplaceOrder order = ordersImport.fetchOrders().get(0);
+        MarketplaceOrder<AllegroCarrier> order = ordersImport.fetchOrders().get(0);
 
         // then
         assertEquals(MarketplaceCustomer.CustomerType.COMPANY, order.customer().customerType());
@@ -254,7 +254,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        MarketplaceOrder order = ordersImport.fetchOrders().get(0);
+        MarketplaceOrder<AllegroCarrier> order = ordersImport.fetchOrders().get(0);
 
         // then
         assertEquals("o-1", order.externalOrderId());
@@ -293,7 +293,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         MarketplaceCustomer.Address shipping = orders.get(0).customer().shippingAddress();
@@ -305,7 +305,7 @@ class AllegroOrdersImportTest {
     }
 
     @Test
-    void resolvesPointOperatorFromDeliveryMethodName() {
+    void resolvesDeliveryCarrierFromMethodName() {
         // given
         AllegroCheckoutForm pickup = new AllegroCheckoutForm("o-6a", "READY_FOR_PROCESSING",
                 paidForm("x").buyer(),
@@ -324,14 +324,14 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
-        assertEquals("INPOST", orders.get(0).customer().shippingAddress().pickupPoint().operator());
+        assertEquals(AllegroCarrier.INPOST, orders.get(0).deliveryCarrier());
     }
 
     @Test
-    void leavesPointOperatorNullWhenDeliveryMethodIsUnknown() {
+    void leavesDeliveryCarrierNullWhenMethodIsUnknown() {
         // given
         AllegroCheckoutForm pickup = new AllegroCheckoutForm("o-6b", "READY_FOR_PROCESSING",
                 paidForm("x").buyer(),
@@ -350,10 +350,10 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
-        assertNull(orders.get(0).customer().shippingAddress().pickupPoint().operator());
+        assertNull(orders.get(0).deliveryCarrier());
     }
 
     @Test
@@ -376,7 +376,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         MarketplaceCustomer customer = orders.get(0).customer();
@@ -402,7 +402,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        MarketplaceOrder order = ordersImport.fetchOrders().get(0);
+        MarketplaceOrder<AllegroCarrier> order = ordersImport.fetchOrders().get(0);
 
         // then
         MarketplaceCustomer customer = order.customer();
@@ -431,7 +431,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         MarketplaceCustomer.Address shipping = orders.get(0).customer().shippingAddress();
@@ -456,7 +456,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals(1, orders.size());
@@ -478,7 +478,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals(1, orders.size());
@@ -500,7 +500,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals(1, orders.size());
@@ -522,7 +522,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals(1, orders.size());
@@ -544,7 +544,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals(1, orders.size());
@@ -569,7 +569,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals(1, orders.size());
@@ -593,7 +593,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals("ACME Sp. z o.o.", orders.get(0).customer().name());
@@ -629,7 +629,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals(1, orders.size());
@@ -655,7 +655,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when
-        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+        List<MarketplaceOrder<AllegroCarrier>> orders = ordersImport.fetchOrders();
 
         // then
         assertEquals("BankTransfer", orders.get(0).paymentType());
