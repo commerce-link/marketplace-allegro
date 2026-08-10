@@ -1,10 +1,10 @@
 package pl.commercelink.marketplace.allegro;
 
-import pl.commercelink.marketplace.api.AliasedCarrier;
+import pl.commercelink.marketplace.api.Carrier;
 
 import java.util.List;
 
-enum AllegroCarrier implements AliasedCarrier {
+enum AllegroCarrier implements Carrier {
 
     INPOST("INPOST", List.of("Paczkomat")),
     DHL("DHL", List.of()),
@@ -34,6 +34,6 @@ enum AllegroCarrier implements AliasedCarrier {
     }
 
     static AllegroCarrier fromCarrierName(String carrierName) {
-        return AliasedCarrier.deserialize(values(), carrierName);
+        return Carrier.deserialize(values(), carrierName);
     }
 }
