@@ -1,39 +1,32 @@
 package pl.commercelink.marketplace.allegro;
 
-import pl.commercelink.marketplace.api.Carrier;
+import java.util.Arrays;
 
-import java.util.List;
+enum AllegroCarrier {
 
-enum AllegroCarrier implements Carrier {
+    INPOST("INPOST", "INPOST"),
+    DHL("DHL", "DHL"),
+    DPD("DPD", "DPD"),
+    POCZTA_POLSKA("POCZTA_POLSKA", "POCZTA_POLSKA"),
+    UPS("UPS", "UPS"),
+    GLS("GLS", "GLS"),
+    FEDEX("FEDEX", "FEDEX"),
+    DB_SCHENKER("DB_SCHENKER", "DB_SCHENKER"),
+    ORLEN_PACZKA("ORLEN", "ORLEN");
 
-    INPOST("INPOST", List.of("Paczkomat")),
-    DHL("DHL", List.of()),
-    DPD("DPD", List.of()),
-    POCZTA_POLSKA("POCZTA_POLSKA", List.of("Poczta", "Pocztex")),
-    UPS("UPS", List.of()),
-    GLS("GLS", List.of()),
-    FEDEX("FEDEX", List.of()),
-    DB_SCHENKER("DB_SCHENKER", List.of("Schenker")),
-    ORLEN_PACZKA("ORLEN", List.of("Orlen", "RUCH"));
-
+    private final String carrier;
     private final String carrierId;
-    private final List<String> aliases;
 
-    AllegroCarrier(String carrierId, List<String> aliases) {
+    AllegroCarrier(String carrier, String carrierId) {
+        this.carrier = carrier;
         this.carrierId = carrierId;
-        this.aliases = aliases;
     }
 
-    String carrierId() {
-        return carrierId;
-    }
-
-    @Override
-    public List<String> aliases() {
-        return aliases;
-    }
-
-    static AllegroCarrier fromCarrierName(String carrierName) {
-        return Carrier.deserialize(values(), carrierName);
+    static String carrierIdOf(String carrier) {
+        return Arrays.stream(values())
+                .filter(candidate -> candidate.carrier.equalsIgnoreCase(carrier))
+                .map(candidate -> candidate.carrierId)
+                .findFirst()
+                .orElse(null);
     }
 }

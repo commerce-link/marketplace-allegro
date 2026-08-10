@@ -36,7 +36,7 @@ class AllegroSandboxSmokeTest {
                 new RestApiWithRetry(restApi, () -> accessToken));
 
         // when
-        List<MarketplaceOrder<AllegroCarrier>> orders = provider.fetchOrders();
+        List<MarketplaceOrder> orders = provider.fetchOrders();
 
         // then
         assertNotNull(orders);

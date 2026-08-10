@@ -9,7 +9,7 @@ import pl.commercelink.rest.client.RestApiWithRetry;
 
 import java.util.List;
 
-class AllegroMarketplaceProvider implements MarketplaceProvider<AllegroCarrier> {
+class AllegroMarketplaceProvider implements MarketplaceProvider {
 
     private final AllegroOrdersImport ordersImport;
     private final AllegroOrderLifecycleEventHandler lifecycleHandler;
@@ -22,7 +22,7 @@ class AllegroMarketplaceProvider implements MarketplaceProvider<AllegroCarrier> 
     }
 
     @Override
-    public List<MarketplaceOrder<AllegroCarrier>> fetchOrders() {
+    public List<MarketplaceOrder> fetchOrders() {
         return ordersImport.fetchOrders();
     }
 

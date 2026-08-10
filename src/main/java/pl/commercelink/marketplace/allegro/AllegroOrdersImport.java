@@ -26,7 +26,7 @@ class AllegroOrdersImport {
         this.restApi = restApi;
     }
 
-    List<MarketplaceOrder<AllegroCarrier>> fetchOrders() {
+    List<MarketplaceOrder> fetchOrders() {
         List<AllegroCheckoutForm> forms = new ArrayList<>();
         int offset = 0;
         AllegroCheckoutFormsResponse response;
@@ -72,7 +72,7 @@ class AllegroOrdersImport {
         return payment.finishedAt() != null;
     }
 
-    private MarketplaceOrder<AllegroCarrier> toMarketplaceOrder(AllegroCheckoutForm form) {
+    private MarketplaceOrder toMarketplaceOrder(AllegroCheckoutForm form) {
         List<MarketplaceProduct> products = form.lineItems().stream()
                 .map(item -> new MarketplaceProduct(
                         item.offer().name(),
@@ -82,7 +82,7 @@ class AllegroOrdersImport {
                         BigDecimal.ZERO))
                 .toList();
 
-        return new MarketplaceOrder<>(
+        return new MarketplaceOrder(
                 form.id(),
                 toMarketplaceCustomer(form),
                 products,
@@ -173,12 +173,9 @@ class AllegroOrdersImport {
                 address.countryCode());
     }
 
-    private AllegroCarrier resolveDeliveryCarrier(AllegroCheckoutForm.Delivery delivery) {
+    private String resolveDeliveryCarrier(AllegroCheckoutForm.Delivery delivery) {
         AllegroCheckoutForm.Method method = delivery.method();
-        if (method == null) {
-            return null;
-        }
-        return AllegroCarrier.fromCarrierName(method.name());
+        return method != null ? method.name() : null;
     }
 
     private PickupPoint toPickupPoint(AllegroCheckoutForm.Delivery delivery) {
