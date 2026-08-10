@@ -3,6 +3,7 @@ package pl.commercelink.marketplace.allegro;
 import pl.commercelink.marketplace.api.MarketplaceCustomer;
 import pl.commercelink.marketplace.api.MarketplaceOrder;
 import pl.commercelink.marketplace.api.MarketplaceProduct;
+import pl.commercelink.marketplace.api.PickupPoint;
 import pl.commercelink.rest.client.RestApiWithRetry;
 
 import java.math.BigDecimal;
@@ -89,7 +90,7 @@ class AllegroOrdersImport {
                 resolvePaymentType(form.payment().type()),
                 form.payment().id(),
                 resolveDeliveryCarrier(form.delivery()),
-                toPickupPointCode(form.delivery()));
+                toPickupPoint(form.delivery()));
     }
 
     private String resolveManufacturerCode(AllegroCheckoutForm.Offer offer) {
@@ -180,9 +181,9 @@ class AllegroOrdersImport {
         return AllegroCarrier.fromCarrierName(method.name());
     }
 
-    private String toPickupPointCode(AllegroCheckoutForm.Delivery delivery) {
+    private PickupPoint toPickupPoint(AllegroCheckoutForm.Delivery delivery) {
         AllegroCheckoutForm.PickupPoint point = delivery.pickupPoint();
-        return point != null ? point.id() : null;
+        return point != null ? new PickupPoint(point.id()) : null;
     }
 
     private MarketplaceCustomer.Address toPlainDeliveryAddress(AllegroCheckoutForm.DeliveryAddress address) {

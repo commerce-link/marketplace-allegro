@@ -272,11 +272,11 @@ class AllegroOrdersImportTest {
         assertEquals("Jan Kowalski", order.customer().name());
         assertEquals("buyer+42@user.allegromail.pl", order.customer().email());
         assertEquals("+48555666777", order.customer().phone());
-        assertNull(order.pickupPointCode());
+        assertNull(order.pickupPoint());
     }
 
     @Test
-    void mapsPickupPointCodeOntoTheOrderAndAddressIntoShipping() {
+    void mapsPickupPointOntoTheOrderAndAddressIntoShipping() {
         // given
         AllegroCheckoutForm pickup = new AllegroCheckoutForm("o-6", "READY_FOR_PROCESSING",
                 paidForm("x").buyer(),
@@ -302,7 +302,7 @@ class AllegroOrdersImportTest {
         assertEquals("Prosta 1", shipping.street());
         assertEquals("00-001", shipping.postalCode());
         assertEquals("Warszawa", shipping.city());
-        assertEquals("ALP123", orders.get(0).pickupPointCode());
+        assertEquals("ALP123", orders.get(0).pickupPoint().code());
     }
 
     @Test
@@ -440,7 +440,7 @@ class AllegroOrdersImportTest {
         assertEquals("Prosta 1", shipping.street());
         assertEquals("00-001", shipping.postalCode());
         assertEquals("Warszawa", shipping.city());
-        assertEquals("ALP999", orders.get(0).pickupPointCode());
+        assertEquals("ALP999", orders.get(0).pickupPoint().code());
     }
 
     @Test
