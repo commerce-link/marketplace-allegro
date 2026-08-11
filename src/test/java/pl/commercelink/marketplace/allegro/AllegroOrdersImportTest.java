@@ -328,7 +328,7 @@ class AllegroOrdersImportTest {
         List<MarketplaceOrder> orders = ordersImport.fetchOrders();
 
         // then
-        assertEquals("InPost Paczkomaty 24/7", orders.get(0).deliveryCarrier());
+        assertEquals("InPost Paczkomaty 24/7", orders.get(0).shippingCarrier());
     }
 
     @Test
@@ -354,7 +354,7 @@ class AllegroOrdersImportTest {
         List<MarketplaceOrder> orders = ordersImport.fetchOrders();
 
         // then
-        assertEquals("Kurier XYZ", orders.get(0).deliveryCarrier());
+        assertEquals("Kurier XYZ", orders.get(0).shippingCarrier());
     }
 
     @Test

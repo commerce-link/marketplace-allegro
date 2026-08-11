@@ -87,9 +87,9 @@ class AllegroOrdersImport {
                 toMarketplaceCustomer(form),
                 products,
                 new BigDecimal(form.delivery().cost().amount()),
+                resolveShippingCarrier(form.delivery()),
                 resolvePaymentType(form.payment().type()),
                 form.payment().id(),
-                resolveDeliveryCarrier(form.delivery()),
                 toPickupPoint(form.delivery()));
     }
 
@@ -173,7 +173,7 @@ class AllegroOrdersImport {
                 address.countryCode());
     }
 
-    private String resolveDeliveryCarrier(AllegroCheckoutForm.Delivery delivery) {
+    private String resolveShippingCarrier(AllegroCheckoutForm.Delivery delivery) {
         AllegroCheckoutForm.Method method = delivery.method();
         return method != null ? method.name() : null;
     }
