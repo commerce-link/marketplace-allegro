@@ -87,7 +87,7 @@ class AllegroOrderLifecycleEventHandlerTest {
         AllegroOrderLifecycleEventHandler handler = new AllegroOrderLifecycleEventHandler(restApi);
 
         // when
-        handler.shipOrder(ORDER_ID, new ShipmentUpdate("PX123", "DPD", "https://tracking/PX123"));
+        handler.shipOrder(ORDER_ID, new ShipmentUpdate("PX123", "DPD", "DPD", "https://tracking/PX123"));
 
         // then
         InOrder inOrder = inOrder(restApi);
@@ -112,7 +112,7 @@ class AllegroOrderLifecycleEventHandlerTest {
         AllegroOrderLifecycleEventHandler handler = new AllegroOrderLifecycleEventHandler(restApi);
 
         // when
-        handler.shipOrder(ORDER_ID, new ShipmentUpdate("PX999", "Kurier XYZ", null));
+        handler.shipOrder(ORDER_ID, new ShipmentUpdate("PX999", null, "Kurier XYZ", null));
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -128,7 +128,7 @@ class AllegroOrderLifecycleEventHandlerTest {
         AllegroOrderLifecycleEventHandler handler = new AllegroOrderLifecycleEventHandler(restApi);
 
         // when
-        handler.shipOrder(ORDER_ID, new ShipmentUpdate(null, null, null));
+        handler.shipOrder(ORDER_ID, new ShipmentUpdate(null, null, null, null));
 
         // then
         verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());

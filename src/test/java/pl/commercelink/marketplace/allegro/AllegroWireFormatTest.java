@@ -127,6 +127,9 @@ class AllegroWireFormatTest {
         assertEquals("15.99", form.delivery().cost().amount());
         assertEquals("PLN", form.delivery().cost().currency());
 
+        assertEquals("method-1", form.delivery().method().id());
+        assertEquals("Paczkomaty InPost", form.delivery().method().name());
+
         AllegroCheckoutForm.PickupPoint pickupPoint = form.delivery().pickupPoint();
         assertEquals("ALP123", pickupPoint.id());
         assertEquals("Paczkomat ALP123", pickupPoint.name());

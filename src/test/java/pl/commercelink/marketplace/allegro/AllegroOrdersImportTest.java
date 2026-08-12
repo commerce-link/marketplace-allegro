@@ -35,6 +35,7 @@ class AllegroOrdersImportTest {
                         new AllegroCheckoutForm.DeliveryAddress("Jan", "Kowalski", null, "Prosta 1",
                                 "Warszawa", "00-001", "PL", "+48123123123"),
                         new AllegroCheckoutForm.Cost("15.99", "PLN"),
+                        null,
                         null),
                 new AllegroCheckoutForm.Invoice(false, null),
                 List.of(new AllegroCheckoutForm.LineItem(
@@ -271,11 +272,11 @@ class AllegroOrdersImportTest {
         assertEquals("Jan Kowalski", order.customer().name());
         assertEquals("buyer+42@user.allegromail.pl", order.customer().email());
         assertEquals("+48555666777", order.customer().phone());
-        assertNull(order.customer().shippingAddress().pickupPoint());
+        assertNull(order.pickupPoint());
     }
 
     @Test
-    void mapsPickupPointDeliveryIntoShippingAddress() {
+    void mapsPickupPointOntoTheOrderAndAddressIntoShipping() {
         // given
         AllegroCheckoutForm pickup = new AllegroCheckoutForm("o-6", "READY_FOR_PROCESSING",
                 paidForm("x").buyer(),
@@ -285,7 +286,8 @@ class AllegroOrdersImportTest {
                         paidForm("x").delivery().address(),
                         paidForm("x").delivery().cost(),
                         new AllegroCheckoutForm.PickupPoint("ALP123", "Paczkomat ALP123",
-                                new AllegroCheckoutForm.PickupPointAddress("Prosta 1", "00-001", "Warszawa"))),
+                                new AllegroCheckoutForm.PickupPointAddress("Prosta 1", "00-001", "Warszawa")),
+                        null),
                 paidForm("x").invoice(),
                 paidForm("x").lineItems());
         when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
@@ -300,8 +302,59 @@ class AllegroOrdersImportTest {
         assertEquals("Prosta 1", shipping.street());
         assertEquals("00-001", shipping.postalCode());
         assertEquals("Warszawa", shipping.city());
-        assertEquals("ALP123", shipping.pickupPoint().id());
-        assertEquals("Paczkomat ALP123", shipping.pickupPoint().name());
+        assertEquals("ALP123", orders.get(0).pickupPoint().code());
+    }
+
+    @Test
+    void resolvesDeliveryCarrierFromMethodName() {
+        // given
+        AllegroCheckoutForm pickup = new AllegroCheckoutForm("o-6a", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-6a", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                new AllegroCheckoutForm.Delivery(
+                        paidForm("x").delivery().address(),
+                        paidForm("x").delivery().cost(),
+                        new AllegroCheckoutForm.PickupPoint("ALP123", "Paczkomat ALP123",
+                                new AllegroCheckoutForm.PickupPointAddress("Prosta 1", "00-001", "Warszawa")),
+                        new AllegroCheckoutForm.Method("m-1", "InPost Paczkomaty 24/7")),
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(pickup), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals("InPost Paczkomaty 24/7", orders.get(0).shippingCarrier());
+    }
+
+    @Test
+    void passesTheDeliveryMethodNameThroughUntouched() {
+        // given
+        AllegroCheckoutForm pickup = new AllegroCheckoutForm("o-6b", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-6b", "ONLINE", "2026-07-10T10:00:00Z"),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                new AllegroCheckoutForm.Delivery(
+                        paidForm("x").delivery().address(),
+                        paidForm("x").delivery().cost(),
+                        new AllegroCheckoutForm.PickupPoint("ALP123", "Paczkomat ALP123",
+                                new AllegroCheckoutForm.PickupPointAddress("Prosta 1", "00-001", "Warszawa")),
+                        new AllegroCheckoutForm.Method("m-2", "Kurier XYZ")),
+                paidForm("x").invoice(),
+                paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(pickup), 1, 1));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals("Kurier XYZ", orders.get(0).shippingCarrier());
     }
 
     @Test
@@ -316,7 +369,8 @@ class AllegroOrdersImportTest {
                                 "Warszawa", "00-002", "PL", "+48123123123"),
                         paidForm("x").delivery().cost(),
                         new AllegroCheckoutForm.PickupPoint("ALP123", "Paczkomat ALP123",
-                                new AllegroCheckoutForm.PickupPointAddress("Prosta 1", "00-001", "Warszawa"))),
+                                new AllegroCheckoutForm.PickupPointAddress("Prosta 1", "00-001", "Warszawa")),
+                        null),
                 new AllegroCheckoutForm.Invoice(false, null),
                 paidForm("x").lineItems());
         when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
@@ -329,7 +383,6 @@ class AllegroOrdersImportTest {
         // then
         MarketplaceCustomer customer = orders.get(0).customer();
         assertEquals("Domowa 5", customer.billingAddress().street());
-        assertNull(customer.billingAddress().pickupPoint());
         assertEquals("Prosta 1", customer.shippingAddress().street());
     }
 
@@ -371,7 +424,8 @@ class AllegroOrdersImportTest {
                 new AllegroCheckoutForm.Delivery(
                         paidForm("x").delivery().address(),
                         paidForm("x").delivery().cost(),
-                        new AllegroCheckoutForm.PickupPoint("ALP999", "Paczkomat ALP999", null)),
+                        new AllegroCheckoutForm.PickupPoint("ALP999", "Paczkomat ALP999", null),
+                        null),
                 paidForm("x").invoice(),
                 paidForm("x").lineItems());
         when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
@@ -386,7 +440,7 @@ class AllegroOrdersImportTest {
         assertEquals("Prosta 1", shipping.street());
         assertEquals("00-001", shipping.postalCode());
         assertEquals("Warszawa", shipping.city());
-        assertEquals("ALP999", shipping.pickupPoint().id());
+        assertEquals("ALP999", orders.get(0).pickupPoint().code());
     }
 
     @Test
@@ -396,7 +450,7 @@ class AllegroOrdersImportTest {
                 paidForm("x").buyer(),
                 new AllegroCheckoutForm.Payment("pay-16", "ONLINE", "2026-07-10T10:00:00Z"),
                 new AllegroCheckoutForm.Fulfillment("NEW"),
-                new AllegroCheckoutForm.Delivery(paidForm("x").delivery().address(), null, null),
+                new AllegroCheckoutForm.Delivery(paidForm("x").delivery().address(), null, null, null),
                 paidForm("x").invoice(),
                 paidForm("x").lineItems());
         when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
@@ -418,7 +472,7 @@ class AllegroOrdersImportTest {
                 paidForm("x").buyer(),
                 new AllegroCheckoutForm.Payment("pay-17", "ONLINE", "2026-07-10T10:00:00Z"),
                 new AllegroCheckoutForm.Fulfillment("NEW"),
-                new AllegroCheckoutForm.Delivery(null, paidForm("x").delivery().cost(), null),
+                new AllegroCheckoutForm.Delivery(null, paidForm("x").delivery().cost(), null, null),
                 paidForm("x").invoice(),
                 paidForm("x").lineItems());
         when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))

@@ -49,11 +49,10 @@ class AllegroOrderLifecycleEventHandler {
     }
 
     private ShipmentCreateRequest toShipmentRequest(ShipmentUpdate update) {
-        AllegroCarrier carrier = AllegroCarrier.fromCarrierName(update.carrier());
-        if (carrier != null) {
-            return new ShipmentCreateRequest(carrier.carrierId(), update.trackingNo(), null);
+        if (update.carrierId() != null) {
+            return new ShipmentCreateRequest(update.carrierId(), update.trackingNo(), null);
         }
-        return new ShipmentCreateRequest("OTHER", update.trackingNo(), update.carrier());
+        return new ShipmentCreateRequest("OTHER", update.trackingNo(), update.carrierName());
     }
 
     record FulfillmentUpdateRequest(String status) {

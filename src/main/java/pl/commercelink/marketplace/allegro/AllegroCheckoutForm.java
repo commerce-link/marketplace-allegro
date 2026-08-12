@@ -30,7 +30,11 @@ record AllegroCheckoutForm(
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Delivery(DeliveryAddress address, Cost cost, PickupPoint pickupPoint) {
+    record Delivery(DeliveryAddress address, Cost cost, PickupPoint pickupPoint, Method method) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Method(String id, String name) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
