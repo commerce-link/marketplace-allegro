@@ -21,13 +21,6 @@ class AllegroOfferExport {
     private static final String PARAM_MANUFACTURER_CODE = "224017";
     private static final String PARAM_MODEL = "237206";
     private static final int MAX_OFFER_IMAGES = 16;
-    private static final String REASON_HTTP_PREFIX = "HTTP_";
-    private static final String REASON_NEW_OFFER_WITHOUT_QUANTITY = "NEW_OFFER_WITHOUT_QUANTITY";
-    private static final String REASON_MISSING_EAN = "MISSING_EAN";
-    private static final String REASON_NO_SHIPPING_RATES = "NO_SHIPPING_RATES";
-    private static final String REASON_EAN_NOT_IN_CATALOG = "EAN_NOT_IN_CATALOG";
-    private static final String REASON_CATALOG_PRODUCT_WITHOUT_IMAGES = "CATALOG_PRODUCT_WITHOUT_IMAGES";
-    private static final String REASON_NO_RESPONSIBLE_PRODUCER = "NO_RESPONSIBLE_PRODUCER";
 
     private final RestApiWithRetry restApi;
 
@@ -88,51 +81,32 @@ class AllegroOfferExport {
     private void createOffer(MarketplaceOffer offer, String shippingRatesId, Map<String, Set<String>> categoryParameters,
                               AllegroGpsrDictionaries gpsr, MarketplaceExportReport report) {
         if (offer.quantity() <= 0) {
-            report.rejected(offer.productId(), REASON_NEW_OFFER_WITHOUT_QUANTITY,
-                    "Offer is not listed on Allegro yet and has no available quantity");
+            reject(offer.productId(), AllegroRejection.newOfferWithoutQuantity(), report);
             return;
         }
         if (offer.ean() == null || offer.ean().isBlank()) {
-            report.rejected(offer.productId(), REASON_MISSING_EAN,
-                    "Product has no EAN, which Allegro requires to match a catalog product");
-            LOGGER.log(System.Logger.Level.WARNING,
-                    "Skipping Allegro offer create for {0}: missing EAN", offer.productId());
+            reject(offer.productId(), AllegroRejection.missingEan(), report);
             return;
         }
         if (shippingRatesId == null) {
-            report.rejected(offer.productId(), REASON_NO_SHIPPING_RATES,
-                    "No shipping rates available on the Allegro account, offer cannot be created");
+            reject(offer.productId(), AllegroRejection.noShippingRates(), report);
             return;
         }
         AllegroProductsResponse.CatalogProduct product = findCatalogProduct(offer.ean());
         if (product == null) {
-            report.rejected(offer.productId(), REASON_EAN_NOT_IN_CATALOG,
-                    "EAN " + offer.ean() + " was not found in the Allegro catalog");
-            LOGGER.log(System.Logger.Level.WARNING,
-                    "Skipping Allegro offer create for {0}: EAN {1} not found in Allegro catalog",
-                    offer.productId(), offer.ean());
+            reject(offer.productId(), AllegroRejection.eanNotInCatalog(offer.ean()), report);
             return;
         }
         List<String> images = product.images() == null ? List.of()
                 : product.images().stream().map(AllegroProductsResponse.Image::url).limit(MAX_OFFER_IMAGES).toList();
         if (images.isEmpty()) {
-            report.rejected(offer.productId(), REASON_CATALOG_PRODUCT_WITHOUT_IMAGES,
-                    "Allegro catalog product " + product.id() + " has no images");
-            LOGGER.log(System.Logger.Level.WARNING,
-                    "Skipping Allegro offer create for {0}: catalog product {1} has no images",
-                    offer.productId(), product.id());
+            reject(offer.productId(), AllegroRejection.catalogProductWithoutImages(product.id()), report);
             return;
         }
         AllegroOfferRequest.ResponsibleProducer responsibleProducer =
                 resolveResponsibleProducer(product, gpsr, offer);
         if (responsibleProducer == null) {
-            report.rejected(offer.productId(), REASON_NO_RESPONSIBLE_PRODUCER,
-                    "Allegro catalog product " + product.id() + " has no responsible producer"
-                            + " and the account dictionary has no entry named \"" + offer.brand() + "\"");
-            LOGGER.log(System.Logger.Level.WARNING,
-                    "Skipping Allegro offer create for {0}: catalog product {1} has no responsible producer"
-                            + " and account dictionary has no entry named \"{2}\"",
-                    offer.productId(), product.id(), offer.brand());
+            reject(offer.productId(), AllegroRejection.noResponsibleProducer(product.id(), offer.brand()), report);
             return;
         }
         AllegroOfferRequest.ResponsiblePerson responsiblePerson = gpsr.responsiblePersonId(offer.brand())
@@ -278,8 +252,11 @@ class AllegroOfferExport {
         if (e.getStatusCode() >= 500) {
             throw e;
         }
-        report.rejected(productId, REASON_HTTP_PREFIX + e.getStatusCode(), e.getResponseBody());
-        LOGGER.log(System.Logger.Level.WARNING,
-                "Skipping Allegro offer {0}: HTTP {1} {2}", productId, e.getStatusCode(), e.getResponseBody());
+        reject(productId, AllegroRejection.httpError(e.getStatusCode(), e.getResponseBody()), report);
+    }
+
+    private void reject(String productId, AllegroRejection rejection, MarketplaceExportReport report) {
+        report.rejected(productId, rejection.code(), rejection.message());
+        LOGGER.log(rejection.level(), "Skipping Allegro offer {0}: {1}", productId, rejection.message());
     }
 }
