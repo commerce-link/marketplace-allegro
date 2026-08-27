@@ -89,7 +89,7 @@ class AllegroReturns implements MarketplaceReturns {
                 "REFUND",
                 lineItems,
                 refund.refundDelivery() ? deliveryRefund(form) : null,
-                "Return " + externalReturnId);
+                "Zwrot " + externalReturnId);
         AllegroRefundResponse response = restApi.postWithAuthRetry("/payments/refunds", request, AllegroRefundResponse.class);
         LOGGER.log(System.Logger.Level.INFO, "Allegro refund {0} for return {1} accepted with status {2}",
                 response == null ? null : response.id(), externalReturnId, response == null ? null : response.status());
@@ -177,7 +177,7 @@ class AllegroReturns implements MarketplaceReturns {
                 .map(item -> new MarketplaceReturn.Item(
                         manufacturerCodeForOffer(form, item.offerId()),
                         (int) item.quantity(),
-                        item.price() == null || item.price().amount() == null ? null : new BigDecimal(item.price().amount()),
+                        item.price() == null ? null : parseAmount(item.price().amount()),
                         formatReason(item.reason())))
                 .toList();
         List<MarketplaceReturn.Parcel> parcels = ret.parcels() == null ? List.of() : ret.parcels().stream()
@@ -229,13 +229,26 @@ class AllegroReturns implements MarketplaceReturns {
     }
 
     private static AllegroRefundRequest.Delivery deliveryRefund(AllegroCheckoutForm form) {
-        if (form.delivery() == null || form.delivery().cost() == null || form.delivery().cost().amount() == null) {
+        if (form.delivery() == null || form.delivery().cost() == null) {
             return null;
         }
         AllegroCheckoutForm.Cost cost = form.delivery().cost();
-        if (new BigDecimal(cost.amount()).signum() <= 0) {
+        BigDecimal amount = parseAmount(cost.amount());
+        if (amount == null || amount.signum() <= 0) {
             return null;
         }
         return new AllegroRefundRequest.Delivery(new AllegroRefundRequest.Money(cost.amount(), cost.currency()));
+    }
+
+    private static BigDecimal parseAmount(String amount) {
+        if (amount == null) {
+            return null;
+        }
+        try {
+            return new BigDecimal(amount);
+        } catch (NumberFormatException e) {
+            LOGGER.log(System.Logger.Level.WARNING, "Could not parse Allegro amount {0}", amount);
+            return null;
+        }
     }
 }

@@ -140,6 +140,21 @@ class AllegroReturnsTest {
         assertNull(items.get(1).reason());
     }
 
+    @Test
+    void toleratesNonNumericPriceInFetchedReturn() {
+        // given
+        AllegroCustomerReturn.Item badPrice = new AllegroCustomerReturn.Item("111", 1, "Item 111",
+                new AllegroCustomerReturn.Price("N/A", "PLN"), null);
+        stubReturnsPage(customerReturn("r-1", "CREATED", List.of(badPrice), List.of()));
+        stubCheckoutForm(checkoutForm(lineItem("li-1", "111", null, 1)));
+
+        // when
+        MarketplaceReturn.Item item = new AllegroReturns(restApi, CLOCK).fetchReturns().get(0).items().get(0);
+
+        // then
+        assertNull(item.unitPriceGross());
+    }
+
     @ParameterizedTest
     @CsvSource({
             "CREATED, DECLARED", "DISPATCHED, IN_TRANSIT", "IN_TRANSIT, IN_TRANSIT", "DELIVERED, DELIVERED",
@@ -253,7 +268,7 @@ class AllegroReturnsTest {
         assertEquals(2, request.lineItems().get(0).quantity());
         assertEquals("li-2", request.lineItems().get(1).id());
         assertNull(request.delivery());
-        assertEquals("Return r-1", request.sellerComment());
+        assertEquals("Zwrot r-1", request.sellerComment());
     }
 
     @Test
@@ -279,6 +294,25 @@ class AllegroReturnsTest {
         AllegroCheckoutForm form = new AllegroCheckoutForm(ORDER_ID, "READY_FOR_PROCESSING", null,
                 new AllegroCheckoutForm.Payment("pay-1", "ONLINE", null), null,
                 new AllegroCheckoutForm.Delivery(null, new AllegroCheckoutForm.Cost("0.00", "PLN"), null, null),
+                null, List.of(lineItem("li-1", "111", null, 1)));
+        stubCheckoutForm(form);
+
+        // when
+        new AllegroReturns(restApi, CLOCK).refundReturn(ORDER_ID, "r-1",
+                new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), true, "cmd-1"));
+
+        // then
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/payments/refunds"), body.capture(), eq(AllegroRefundResponse.class));
+        assertNull(((AllegroRefundRequest) body.getValue()).delivery());
+    }
+
+    @Test
+    void refundSkipsDeliveryWhenCostIsNotNumeric() {
+        // given
+        AllegroCheckoutForm form = new AllegroCheckoutForm(ORDER_ID, "READY_FOR_PROCESSING", null,
+                new AllegroCheckoutForm.Payment("pay-1", "ONLINE", null), null,
+                new AllegroCheckoutForm.Delivery(null, new AllegroCheckoutForm.Cost("N/A", "PLN"), null, null),
                 null, List.of(lineItem("li-1", "111", null, 1)));
         stubCheckoutForm(form);
 
