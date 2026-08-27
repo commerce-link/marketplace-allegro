@@ -39,6 +39,7 @@ class AllegroOrdersImportTest {
                         null),
                 new AllegroCheckoutForm.Invoice(false, null),
                 List.of(new AllegroCheckoutForm.LineItem(
+                        null,
                         new AllegroCheckoutForm.Offer("offer-1", "Laptop X", new AllegroCheckoutForm.External("SKU-1")),
                         2,
                         new AllegroCheckoutForm.Price("2500.00", "PLN"))));
@@ -563,6 +564,7 @@ class AllegroOrdersImportTest {
                 paidForm("x").delivery(),
                 paidForm("x").invoice(),
                 List.of(new AllegroCheckoutForm.LineItem(
+                        null,
                         new AllegroCheckoutForm.Offer("offer-1", "Laptop X", new AllegroCheckoutForm.External("SKU-1")),
                         2,
                         null)));
@@ -687,6 +689,7 @@ class AllegroOrdersImportTest {
                 new AllegroCheckoutForm.Fulfillment("NEW"),
                 paidForm("x").delivery(), paidForm("x").invoice(),
                 List.of(new AllegroCheckoutForm.LineItem(
+                        null,
                         new AllegroCheckoutForm.Offer("offer-9", "Mysz Y", null),
                         1, new AllegroCheckoutForm.Price("99.00", "PLN"))));
         when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))

@@ -113,7 +113,7 @@ record AllegroCheckoutForm(
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record LineItem(Offer offer, long quantity, Price price) {
+    record LineItem(String id, Offer offer, long quantity, Price price) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
