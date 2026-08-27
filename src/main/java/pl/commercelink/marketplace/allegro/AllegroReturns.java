@@ -155,18 +155,12 @@ class AllegroReturns implements MarketplaceReturns {
         if (form.lineItems() != null) {
             for (AllegroCheckoutForm.LineItem lineItem : form.lineItems()) {
                 if (lineItem.offer() != null && offerId.equals(lineItem.offer().id())) {
-                    return resolveManufacturerCode(lineItem.offer());
+                    // Seller SKU rule is shared with order import
+                    return AllegroOrdersImport.resolveManufacturerCode(lineItem.offer());
                 }
             }
         }
         return offerId;
-    }
-
-    static String resolveManufacturerCode(AllegroCheckoutForm.Offer offer) {
-        if (offer.external() != null && offer.external().id() != null) {
-            return offer.external().id();
-        }
-        return offer.id();
     }
 
     private static String formatReason(AllegroCustomerReturn.Reason reason) {
