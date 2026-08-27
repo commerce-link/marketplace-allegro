@@ -9,6 +9,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pl.commercelink.marketplace.api.MarketplaceReturn;
 import pl.commercelink.marketplace.api.MarketplaceReturnStatus;
+import pl.commercelink.marketplace.api.ReturnRefund;
+import pl.commercelink.marketplace.api.ReturnRejection;
 import pl.commercelink.rest.client.RestApiWithRetry;
 
 import java.math.BigDecimal;
@@ -224,5 +226,157 @@ class AllegroReturnsTest {
 
         // then
         assertEquals(List.of("r-1", "r-2"), result.stream().map(MarketplaceReturn::externalReturnId).toList());
+    }
+
+    @Test
+    void refundPostsQuantityLineItemsResolvedByManufacturerCode() {
+        // given
+        stubCheckoutForm(checkoutForm(lineItem("li-1", "111", "SKU-1", 3), lineItem("li-2", "222", null, 1)));
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+        ReturnRefund refund = new ReturnRefund(
+                List.of(new ReturnRefund.Item("SKU-1", 2), new ReturnRefund.Item("222", 1)), false, "cmd-1");
+
+        // when
+        returns.refundReturn(ORDER_ID, "r-1", refund);
+
+        // then
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/payments/refunds"), body.capture(), eq(AllegroRefundResponse.class));
+        AllegroRefundRequest request = (AllegroRefundRequest) body.getValue();
+        assertEquals("pay-1", request.payment().id());
+        assertEquals(ORDER_ID, request.order().id());
+        assertEquals("cmd-1", request.commandId());
+        assertEquals("REFUND", request.reason());
+        assertEquals(2, request.lineItems().size());
+        assertEquals("li-1", request.lineItems().get(0).id());
+        assertEquals("QUANTITY", request.lineItems().get(0).type());
+        assertEquals(2, request.lineItems().get(0).quantity());
+        assertEquals("li-2", request.lineItems().get(1).id());
+        assertNull(request.delivery());
+        assertEquals("Return r-1", request.sellerComment());
+    }
+
+    @Test
+    void refundIncludesDeliveryCostWhenRequested() {
+        // given
+        stubCheckoutForm(checkoutForm(lineItem("li-1", "111", null, 1)));
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+
+        // when
+        returns.refundReturn(ORDER_ID, "r-1", new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), true, "cmd-1"));
+
+        // then
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/payments/refunds"), body.capture(), eq(AllegroRefundResponse.class));
+        AllegroRefundRequest request = (AllegroRefundRequest) body.getValue();
+        assertEquals("12.99", request.delivery().value().amount());
+        assertEquals("PLN", request.delivery().value().currency());
+    }
+
+    @Test
+    void refundSkipsDeliveryWhenCostIsZero() {
+        // given
+        AllegroCheckoutForm form = new AllegroCheckoutForm(ORDER_ID, "READY_FOR_PROCESSING", null,
+                new AllegroCheckoutForm.Payment("pay-1", "ONLINE", null), null,
+                new AllegroCheckoutForm.Delivery(null, new AllegroCheckoutForm.Cost("0.00", "PLN"), null, null),
+                null, List.of(lineItem("li-1", "111", null, 1)));
+        stubCheckoutForm(form);
+
+        // when
+        new AllegroReturns(restApi, CLOCK).refundReturn(ORDER_ID, "r-1",
+                new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), true, "cmd-1"));
+
+        // then
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/payments/refunds"), body.capture(), eq(AllegroRefundResponse.class));
+        assertNull(((AllegroRefundRequest) body.getValue()).delivery());
+    }
+
+    @Test
+    void refundFailsLoudWhenLineItemCannotBeResolved() {
+        // given
+        stubCheckoutForm(checkoutForm(lineItem("li-1", "111", null, 1)));
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+
+        // when / then
+        assertThrows(IllegalStateException.class, () -> returns.refundReturn(ORDER_ID, "r-1",
+                new ReturnRefund(List.of(new ReturnRefund.Item("UNKNOWN", 1)), false, "cmd-1")));
+        verify(restApi, never()).postWithAuthRetry(eq("/payments/refunds"), any(), eq(AllegroRefundResponse.class));
+    }
+
+    @Test
+    void refundFailsLoudWhenCheckoutFormMissing() {
+        // given
+        when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms/" + ORDER_ID), anyMap(), eq(AllegroCheckoutForm.class)))
+                .thenThrow(new pl.commercelink.rest.client.HttpClientException(404, "Not found"));
+
+        // when / then
+        assertThrows(IllegalStateException.class, () -> new AllegroReturns(restApi, CLOCK).refundReturn(ORDER_ID, "r-1",
+                new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), false, "cmd-1")));
+    }
+
+    private void stubReturnDetails(String status, AllegroCustomerReturn.Rejection rejection) {
+        when(restApi.fetchWithAuthRetry(eq("/order/customer-returns/r-1"), anyMap(), anyMap(), eq(AllegroCustomerReturn.class)))
+                .thenReturn(new AllegroCustomerReturn("r-1", ORDER_ID, null, status, null, false, List.of(), List.of(), rejection));
+    }
+
+    @Test
+    void rejectPostsRefundRejectedWithReasonUsingBetaHeaders() {
+        // given
+        stubReturnDetails("DELIVERED", null);
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+
+        // when
+        returns.rejectReturn("r-1", new ReturnRejection("Item damaged by buyer"));
+
+        // then
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        ArgumentCaptor<Map<String, String>> headers = ArgumentCaptor.forClass(Map.class);
+        verify(restApi).postWithAuthRetry(eq("/order/customer-returns/r-1/rejection"), body.capture(), headers.capture(),
+                eq(AllegroCustomerReturn.class));
+        AllegroReturnRejectionRequest request = (AllegroReturnRejectionRequest) body.getValue();
+        assertEquals("REFUND_REJECTED", request.rejection().code());
+        assertEquals("Item damaged by buyer", request.rejection().reason());
+        assertEquals("application/vnd.allegro.beta.v1+json", headers.getValue().get("Accept"));
+    }
+
+    @Test
+    void rejectTruncatesReasonTo250Characters() {
+        // given
+        stubReturnDetails("CREATED", null);
+        String longReason = "x".repeat(300);
+
+        // when
+        new AllegroReturns(restApi, CLOCK).rejectReturn("r-1", new ReturnRejection(longReason));
+
+        // then
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/order/customer-returns/r-1/rejection"), body.capture(), anyMap(),
+                eq(AllegroCustomerReturn.class));
+        assertEquals(250, ((AllegroReturnRejectionRequest) body.getValue()).rejection().reason().length());
+    }
+
+    @Test
+    void rejectIsNoOpWhenAlreadyRejected() {
+        // given
+        stubReturnDetails("REJECTED", new AllegroCustomerReturn.Rejection("REFUND_REJECTED", "earlier", null));
+
+        // when
+        new AllegroReturns(restApi, CLOCK).rejectReturn("r-1", new ReturnRejection("again"));
+
+        // then
+        verify(restApi, never()).postWithAuthRetry(anyString(), any(), anyMap(), any());
+    }
+
+    @Test
+    void rejectIsNoOpWhenAlreadyRefunded() {
+        // given
+        stubReturnDetails("FINISHED", null);
+
+        // when
+        new AllegroReturns(restApi, CLOCK).rejectReturn("r-1", new ReturnRejection("too late"));
+
+        // then
+        verify(restApi, never()).postWithAuthRetry(anyString(), any(), anyMap(), any());
     }
 }

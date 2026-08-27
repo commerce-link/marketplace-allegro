@@ -29,6 +29,7 @@ class AllegroReturns implements MarketplaceReturns {
     static final Map<String, String> BETA_HEADERS = Map.of("Accept", BETA_MEDIA_TYPE, "Content-Type", BETA_MEDIA_TYPE);
     static final int RETURNS_WINDOW_DAYS = 60;
     static final int PAGE_SIZE = 1000;
+    private static final int MAX_REJECTION_REASON = 250;
 
     private static final String CUSTOMER_RETURNS = "/order/customer-returns";
     private static final String CHECKOUT_FORMS = "/order/checkout-forms/";
@@ -70,12 +71,49 @@ class AllegroReturns implements MarketplaceReturns {
 
     @Override
     public void refundReturn(String externalOrderId, String externalReturnId, ReturnRefund refund) {
-        throw new UnsupportedOperationException("implemented in the next task");
+        AllegroCheckoutForm form = fetchCheckoutForm(externalOrderId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Allegro checkout form " + externalOrderId + " not found for return " + externalReturnId));
+        if (form.payment() == null || form.payment().id() == null) {
+            throw new IllegalStateException("Allegro checkout form " + externalOrderId + " has no payment id");
+        }
+        List<AllegroRefundRequest.LineItem> lineItems = refund.items().stream()
+                .map(item -> new AllegroRefundRequest.LineItem(
+                        lineItemIdForManufacturerCode(form, item.manufacturerCode(), externalReturnId),
+                        "QUANTITY", item.quantity()))
+                .toList();
+        AllegroRefundRequest request = new AllegroRefundRequest(
+                new AllegroRefundRequest.Ref(form.payment().id()),
+                new AllegroRefundRequest.Ref(externalOrderId),
+                refund.commandId(),
+                "REFUND",
+                lineItems,
+                refund.refundDelivery() ? deliveryRefund(form) : null,
+                "Return " + externalReturnId);
+        AllegroRefundResponse response = restApi.postWithAuthRetry("/payments/refunds", request, AllegroRefundResponse.class);
+        LOGGER.log(System.Logger.Level.INFO, "Allegro refund {0} for return {1} accepted with status {2}",
+                response == null ? null : response.id(), externalReturnId, response == null ? null : response.status());
     }
 
     @Override
     public void rejectReturn(String externalReturnId, ReturnRejection rejection) {
-        throw new UnsupportedOperationException("implemented in the next task");
+        AllegroCustomerReturn current = restApi.fetchWithAuthRetry(CUSTOMER_RETURNS + "/" + externalReturnId,
+                Map.of(), BETA_HEADERS, AllegroCustomerReturn.class);
+        if (current.rejection() != null || "REJECTED".equals(current.status())) {
+            return;
+        }
+        Optional<MarketplaceReturnStatus> status = mapStatus(current.status());
+        if (status.isPresent() && status.get() == MarketplaceReturnStatus.REFUNDED) {
+            LOGGER.log(System.Logger.Level.WARNING,
+                    "Allegro return {0} is already refunded ({1}); rejection skipped", externalReturnId, current.status());
+            return;
+        }
+        String reason = rejection.reason() == null ? "" : rejection.reason();
+        if (reason.length() > MAX_REJECTION_REASON) {
+            reason = reason.substring(0, MAX_REJECTION_REASON);
+        }
+        restApi.postWithAuthRetry(CUSTOMER_RETURNS + "/" + externalReturnId + "/rejection",
+                AllegroReturnRejectionRequest.refundRejected(reason), BETA_HEADERS, AllegroCustomerReturn.class);
     }
 
     private List<AllegroCustomerReturn> fetchAllPages() {
@@ -175,5 +213,29 @@ class AllegroReturns implements MarketplaceReturns {
 
     private static LocalDateTime parseUtc(String isoInstant) {
         return isoInstant == null ? null : LocalDateTime.ofInstant(Instant.parse(isoInstant), ZoneOffset.UTC);
+    }
+
+    private static String lineItemIdForManufacturerCode(AllegroCheckoutForm form, String manufacturerCode,
+                                                        String externalReturnId) {
+        if (form.lineItems() != null) {
+            for (AllegroCheckoutForm.LineItem lineItem : form.lineItems()) {
+                if (lineItem.offer() != null && manufacturerCode.equals(AllegroOrdersImport.resolveManufacturerCode(lineItem.offer()))) {
+                    return lineItem.id();
+                }
+            }
+        }
+        throw new IllegalStateException("No Allegro line item matches manufacturer code " + manufacturerCode
+                + " in order " + form.id() + " for return " + externalReturnId);
+    }
+
+    private static AllegroRefundRequest.Delivery deliveryRefund(AllegroCheckoutForm form) {
+        if (form.delivery() == null || form.delivery().cost() == null || form.delivery().cost().amount() == null) {
+            return null;
+        }
+        AllegroCheckoutForm.Cost cost = form.delivery().cost();
+        if (new BigDecimal(cost.amount()).signum() <= 0) {
+            return null;
+        }
+        return new AllegroRefundRequest.Delivery(new AllegroRefundRequest.Money(cost.amount(), cost.currency()));
     }
 }
