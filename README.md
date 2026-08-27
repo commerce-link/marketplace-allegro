@@ -60,6 +60,33 @@ Offer parameters 224017 (manufacturer code) and 237206 (model) are added only
 when they appear on the parameter list of the product's category
 (`GET /sale/categories/{id}/parameters`).
 
+## Customer returns (0.4.0)
+
+The provider exposes `MarketplaceProvider.returns()` backed by `AllegroReturns`:
+
+- `fetchReturns()` polls `GET /order/customer-returns?createdAt.gte=<now-60d>` (beta media type
+  `application/vnd.allegro.beta.v1+json`, sent per request), skips One Fulfillment returns, maps
+  `items[].offerId` to the seller SKU through the checkout form (`offer.external.id`, else `offer.id` — the same
+  key used at order import) and normalises the Allegro status to `DECLARED / IN_TRANSIT / DELIVERED / REFUNDED / REJECTED`.
+- `refundReturn(...)` posts `POST /payments/refunds` with `QUANTITY` line items and, when asked, the delivery cost.
+  `ReturnRefund.commandId` is Allegro's idempotency key — the app keeps it stable across redeliveries.
+- `rejectReturn(...)` posts `POST /order/customer-returns/{id}/rejection` with code `REFUND_REJECTED`; a return that is
+  already rejected or already refunded is left untouched.
+
+Required scopes on the seller's Allegro application: `allegro:api:orders:read`, `allegro:api:orders:write`,
+**`allegro:api:payments:write`**. Stores authorised before the payments scope was added must re-run the device flow.
+
+Not covered on purpose: replacement/repair outcomes (`NEW_ITEM_SENT`, `ITEM_FIXED`) — reject those manually in the
+Allegro panel; disputes (`/sale/issues`); refund status polling. Since 2026-09-01 Allegro refunds automatically on the
+8th day after the return parcel is delivered unless the seller refunds or rejects — the app surfaces such refunds as
+a store notification.
+
+Sandbox: a customer return can only be created from the buyer's web UI (no API); the parcel will stay in `CREATED`.
+Refunds and rejections work on the sandbox (top up the seller balance with the payment simulator first).
+Smoke test: `mvn test -Dtest=AllegroReturnsSandboxSmokeTest -Dallegro.sandbox.smoke=true` with
+`ALLEGRO_CLIENT_ID/SECRET/REFRESH_TOKEN` (+ `ALLEGRO_SMOKE_ORDER_ID`/`ALLEGRO_SMOKE_MFN` for a refund,
+`ALLEGRO_SMOKE_RETURN_ID` for a rejection).
+
 ## Testing on the Allegro Sandbox
 
 1. Create TWO free accounts at https://allegro.pl.allegrosandbox.pl (seller + buyer);
