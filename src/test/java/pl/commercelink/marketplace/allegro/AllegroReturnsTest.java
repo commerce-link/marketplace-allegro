@@ -102,7 +102,7 @@ class AllegroReturnsTest {
         assertEquals("1000", params.getValue().get("limit"));
         assertEquals("0", params.getValue().get("offset"));
         assertEquals("application/vnd.allegro.beta.v1+json", headers.getValue().get("Accept"));
-        assertEquals("application/vnd.allegro.beta.v1+json", headers.getValue().get("Content-Type"));
+        assertNull(headers.getValue().get("Content-Type"));
     }
 
     @Test

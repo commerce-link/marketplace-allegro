@@ -28,6 +28,7 @@ class AllegroReturns implements MarketplaceReturns {
     private static final System.Logger LOGGER = System.getLogger(AllegroReturns.class.getName());
 
     static final String BETA_MEDIA_TYPE = "application/vnd.allegro.beta.v1+json";
+    static final Map<String, String> BETA_ACCEPT_ONLY = Map.of("Accept", BETA_MEDIA_TYPE);
     static final Map<String, String> BETA_HEADERS = Map.of("Accept", BETA_MEDIA_TYPE, "Content-Type", BETA_MEDIA_TYPE);
     static final int RETURNS_WINDOW_DAYS = 60;
     static final int PAGE_SIZE = 1000;
@@ -105,7 +106,7 @@ class AllegroReturns implements MarketplaceReturns {
     @Override
     public void rejectReturn(String externalReturnId, ReturnRejection rejection) {
         AllegroCustomerReturn current = restApi.fetchWithAuthRetry(CUSTOMER_RETURNS + "/" + externalReturnId,
-                Map.of(), BETA_HEADERS, AllegroCustomerReturn.class);
+                Map.of(), BETA_ACCEPT_ONLY, AllegroCustomerReturn.class);
         if (current.rejection() != null || "REJECTED".equals(current.status())) {
             return;
         }
@@ -138,7 +139,7 @@ class AllegroReturns implements MarketplaceReturns {
             params.put("createdAt.gte", createdAtFrom);
             params.put("limit", String.valueOf(PAGE_SIZE));
             params.put("offset", String.valueOf(offset));
-            response = restApi.fetchWithAuthRetry(CUSTOMER_RETURNS, params, BETA_HEADERS, AllegroCustomerReturnsResponse.class);
+            response = restApi.fetchWithAuthRetry(CUSTOMER_RETURNS, params, BETA_ACCEPT_ONLY, AllegroCustomerReturnsResponse.class);
             List<AllegroCustomerReturn> returns = response.customerReturns() == null ? List.of() : response.customerReturns();
             all.addAll(returns);
             offset += returns.size();
