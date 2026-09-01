@@ -18,6 +18,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -223,9 +224,24 @@ class AllegroReturns implements MarketplaceReturns {
                     return lineItem.id();
                 }
             }
+            // Orders imported before the app persisted the raw marketplace key send a normalised code.
+            for (AllegroCheckoutForm.LineItem lineItem : form.lineItems()) {
+                if (lineItem.offer() != null && normaliseCode(manufacturerCode)
+                        .equals(normaliseCode(AllegroOrdersImport.resolveManufacturerCode(lineItem.offer())))) {
+                    return lineItem.id();
+                }
+            }
         }
         throw new IllegalStateException("No Allegro line item matches manufacturer code " + manufacturerCode
                 + " in order " + form.id() + " for return " + externalReturnId);
+    }
+
+    /**
+     * Mirrors UnifiedProductIdentifiers.unifyMfn in the app. Duplicated on purpose: this module has no
+     * dependency on commercelink-commons and is meant to stay thin.
+     */
+    private static String normaliseCode(String code) {
+        return code == null ? "" : code.trim().replace(" ", "").toUpperCase(Locale.ROOT);
     }
 
     private static AllegroRefundRequest.Delivery deliveryRefund(AllegroCheckoutForm form) {

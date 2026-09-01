@@ -339,6 +339,23 @@ class AllegroReturnsTest {
     }
 
     @Test
+    void refundFallsBackToNormalisedComparisonForLegacyOrders() {
+        // given: a legacy order sends an uppercased key, while Allegro holds the raw seller SKU
+        stubCheckoutForm(checkoutForm(lineItem("li-1", "111", "k7m2xq9pz4", 1)));
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+
+        // when
+        returns.refundReturn(ORDER_ID, "ret-1",
+                new ReturnRefund(List.of(new ReturnRefund.Item("K7M2XQ9PZ4", 1)), false, "cmd-1"));
+
+        // then
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/payments/refunds"), body.capture(), eq(AllegroRefundResponse.class));
+        AllegroRefundRequest request = (AllegroRefundRequest) body.getValue();
+        assertEquals("li-1", request.lineItems().get(0).id());
+    }
+
+    @Test
     void refundFailsLoudWhenCheckoutFormMissing() {
         // given
         when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms/" + ORDER_ID), anyMap(), eq(AllegroCheckoutForm.class)))
