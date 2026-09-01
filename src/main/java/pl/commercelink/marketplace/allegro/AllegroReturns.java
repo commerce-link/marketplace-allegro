@@ -17,6 +17,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -78,10 +79,15 @@ class AllegroReturns implements MarketplaceReturns {
         if (form.payment() == null || form.payment().id() == null) {
             throw new IllegalStateException("Allegro checkout form " + externalOrderId + " has no payment id");
         }
-        List<AllegroRefundRequest.LineItem> lineItems = refund.items().stream()
-                .map(item -> new AllegroRefundRequest.LineItem(
-                        lineItemIdForManufacturerCode(form, item.manufacturerCode(), externalReturnId),
-                        "QUANTITY", item.quantity()))
+        // A malformed payload with a repeated lineItems[].id is rejected by Allegro; merge defensively
+        // so no caller can emit one.
+        Map<String, Integer> quantityByLineItem = new LinkedHashMap<>();
+        for (ReturnRefund.Item item : refund.items()) {
+            String lineItemId = lineItemIdForManufacturerCode(form, item.manufacturerCode(), externalReturnId);
+            quantityByLineItem.merge(lineItemId, item.quantity(), Integer::sum);
+        }
+        List<AllegroRefundRequest.LineItem> lineItems = quantityByLineItem.entrySet().stream()
+                .map(e -> new AllegroRefundRequest.LineItem(e.getKey(), "QUANTITY", e.getValue()))
                 .toList();
         AllegroRefundRequest request = new AllegroRefundRequest(
                 new AllegroRefundRequest.Ref(form.payment().id()),

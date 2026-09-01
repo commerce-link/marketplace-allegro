@@ -272,6 +272,25 @@ class AllegroReturnsTest {
     }
 
     @Test
+    void refundMergesDuplicateLineItemIdsIntoOneEntry() {
+        // given: two refund items resolving to the same checkout-form line item
+        stubCheckoutForm(checkoutForm(lineItem("li-1", "offer-1", "sku-a", 3)));
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+
+        // when
+        returns.refundReturn(ORDER_ID, "ret-1", new ReturnRefund(
+                List.of(new ReturnRefund.Item("sku-a", 1), new ReturnRefund.Item("sku-a", 2)), false, "cmd-1"));
+
+        // then
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/payments/refunds"), body.capture(), eq(AllegroRefundResponse.class));
+        AllegroRefundRequest sent = (AllegroRefundRequest) body.getValue();
+        assertEquals(1, sent.lineItems().size());
+        assertEquals("li-1", sent.lineItems().get(0).id());
+        assertEquals(3, sent.lineItems().get(0).quantity());
+    }
+
+    @Test
     void refundIncludesDeliveryCostWhenRequested() {
         // given
         stubCheckoutForm(checkoutForm(lineItem("li-1", "111", null, 1)));
