@@ -30,7 +30,7 @@ record AllegroCustomerReturn(
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Parcel(String waybill, String carrierId) {
+    record Parcel(String waybill, String carrierId, String transportingWaybill, String transportingCarrierId) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

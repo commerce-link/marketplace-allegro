@@ -72,6 +72,18 @@ class AllegroReturnsTest {
                 .thenReturn(form);
     }
 
+    private static AllegroCustomerReturn returnWithParcel(String waybill, String carrierId,
+                                                          String transportingWaybill, String transportingCarrierId) {
+        return customerReturn("r-1", "CREATED", List.of(item("111", 1, null, null)),
+                List.of(new AllegroCustomerReturn.Parcel(waybill, carrierId, transportingWaybill, transportingCarrierId)));
+    }
+
+    private MarketplaceReturn firstMappedReturn(AllegroCustomerReturn ret) {
+        stubReturnsPage(ret);
+        stubCheckoutForm(checkoutForm(lineItem("li-1", "111", null, 1)));
+        return new AllegroReturns(restApi, CLOCK).fetchReturns().get(0);
+    }
+
     @Test
     void fetchesReturnsWithBetaHeadersAndCreatedAtWindow() {
         // given
@@ -94,11 +106,25 @@ class AllegroReturnsTest {
     }
 
     @Test
+    void prefersTheTransportingCarrierOverAllegroOwnWaybill() {
+        // given: an Allegro return label — the physical carrier differs from the Allegro one
+        // (docs: transporting* is null only when a single carrier is involved)
+        AllegroCustomerReturn ret = returnWithParcel("ALLEGRO-WB", "ALLEGRO", "2171143568953", "ORLEN");
+
+        // when
+        MarketplaceReturn mapped = firstMappedReturn(ret);
+
+        // then
+        assertEquals("2171143568953", mapped.parcels().get(0).trackingNo());
+        assertEquals("ORLEN", mapped.parcels().get(0).carrierId());
+    }
+
+    @Test
     void mapsReturnItemsThroughCheckoutFormExternalId() {
         // given
         stubReturnsPage(customerReturn("r-1", "CREATED",
                 List.of(item("7680560740", 2, "NOT_AS_DESCRIBED", "Wrong colour")),
-                List.of(new AllegroCustomerReturn.Parcel("0000123456", "INPOST"))));
+                List.of(new AllegroCustomerReturn.Parcel("0000123456", "INPOST", null, null))));
         stubCheckoutForm(checkoutForm(lineItem("li-1", "7680560740", "SKU-1", 3)));
         AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
 

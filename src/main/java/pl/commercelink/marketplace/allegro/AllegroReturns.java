@@ -188,8 +188,10 @@ class AllegroReturns implements MarketplaceReturns {
                         formatReason(item.reason())))
                 .toList();
         List<MarketplaceReturn.Parcel> parcels = ret.parcels() == null ? List.of() : ret.parcels().stream()
-                .filter(p -> p.waybill() != null && !p.waybill().isBlank())
-                .map(p -> new MarketplaceReturn.Parcel(p.waybill(), p.carrierId()))
+                .map(p -> new MarketplaceReturn.Parcel(
+                        firstNonBlank(p.transportingWaybill(), p.waybill()),
+                        firstNonBlank(p.transportingCarrierId(), p.carrierId())))
+                .filter(p -> p.trackingNo() != null && !p.trackingNo().isBlank())
                 .toList();
         return new MarketplaceReturn(ret.id(), ret.orderId(), ret.referenceNumber(), status,
                 parseUtc(ret.createdAt()), items, parcels);
@@ -206,6 +208,11 @@ class AllegroReturns implements MarketplaceReturns {
             }
         }
         return offerId;
+    }
+
+    /** Allegro leaves the transporting fields null when a single carrier handles the parcel. */
+    private static String firstNonBlank(String preferred, String fallback) {
+        return preferred != null && !preferred.isBlank() ? preferred : fallback;
     }
 
     private static String formatReason(AllegroCustomerReturn.Reason reason) {
