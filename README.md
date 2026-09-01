@@ -76,6 +76,11 @@ The provider exposes `MarketplaceProvider.returns()` backed by `AllegroReturns`:
 Required scopes on the seller's Allegro application: `allegro:api:orders:read`, `allegro:api:orders:write`,
 **`allegro:api:payments:write`**. Stores authorised before the payments scope was added must re-run the device flow.
 
+Line-item matching falls back to a private `normaliseCode` helper (uppercase, applied only when comparing
+against a legacy order's uppercased key) that deliberately duplicates the app's `UnifiedProductIdentifiers.unifyMfn`
+normalisation, rather than depending on `commercelink-commons` from this thin ServiceLoader adapter. If
+`unifyMfn`'s semantics ever change, this copy must be updated in lockstep or return matching silently drifts.
+
 Not covered on purpose: replacement/repair outcomes (`NEW_ITEM_SENT`, `ITEM_FIXED`) — reject those manually in the
 Allegro panel; disputes (`/sale/issues`); refund status polling. Since 2026-09-01 Allegro refunds automatically on the
 8th day after the return parcel is delivered unless the seller refunds or rejects — the app surfaces such refunds as
