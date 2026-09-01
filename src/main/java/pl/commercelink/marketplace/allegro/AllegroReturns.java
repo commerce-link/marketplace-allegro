@@ -115,7 +115,11 @@ class AllegroReturns implements MarketplaceReturns {
                     "Allegro return {0} is already refunded ({1}); rejection skipped", externalReturnId, current.status());
             return;
         }
-        String reason = rejection.reason() == null ? "" : rejection.reason();
+        String reason = rejection.reason() == null ? "" : rejection.reason().trim();
+        if (reason.isEmpty()) {
+            throw new IllegalArgumentException("Allegro requires a rejection reason (1-250 chars) for return "
+                    + externalReturnId);
+        }
         if (reason.length() > MAX_REJECTION_REASON) {
             reason = reason.substring(0, MAX_REJECTION_REASON);
         }

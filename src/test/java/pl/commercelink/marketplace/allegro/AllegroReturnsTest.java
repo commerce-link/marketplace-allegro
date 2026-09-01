@@ -453,6 +453,17 @@ class AllegroReturnsTest {
     }
 
     @Test
+    void rejectionRequiresANonEmptyReason() {
+        // given: the docs declare minLength 1 for REFUND_REJECTED
+        stubReturnDetails("DELIVERED", null);
+
+        // when / then
+        assertThrows(IllegalArgumentException.class,
+                () -> new AllegroReturns(restApi, CLOCK).rejectReturn("r-1", new ReturnRejection("  ")));
+        verify(restApi, never()).postWithAuthRetry(contains("/rejection"), any(), any(), any());
+    }
+
+    @Test
     void rejectIsNoOpWhenAlreadyRejected() {
         // given
         stubReturnDetails("REJECTED", new AllegroCustomerReturn.Rejection("REFUND_REJECTED", "earlier", null));
