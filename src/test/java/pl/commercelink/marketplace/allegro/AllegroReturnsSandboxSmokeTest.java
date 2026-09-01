@@ -15,6 +15,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * ALLEGRO_CLIENT_ID=... ALLEGRO_CLIENT_SECRET=... ALLEGRO_REFRESH_TOKEN=... \
  *   [ALLEGRO_SMOKE_ORDER_ID=<paid checkout-form id> ALLEGRO_SMOKE_MFN=<manufacturer code>] \
  *   [ALLEGRO_SMOKE_RETURN_ID=<customer return id>] \
+ *   [ALLEGRO_SMOKE_COMMAND_ID=<fixed id, re-run to verify idempotency>] \
  *   mvn test -Dtest=AllegroReturnsSandboxSmokeTest -Dallegro.sandbox.smoke=true
  * The refund test moves (sandbox) money: it refunds 1 unit of the given line item.
  */
@@ -63,7 +65,10 @@ class AllegroReturnsSandboxSmokeTest {
         // given
         String orderId = System.getenv("ALLEGRO_SMOKE_ORDER_ID");
         String mfn = System.getenv("ALLEGRO_SMOKE_MFN");
-        String commandId = UUID.randomUUID().toString();
+        // Reusing ALLEGRO_SMOKE_COMMAND_ID across two runs is how this test actually verifies
+        // idempotency; a fresh random id every run would never exercise Allegro's deduplication.
+        String commandId = Optional.ofNullable(System.getenv("ALLEGRO_SMOKE_COMMAND_ID"))
+                .orElseGet(() -> UUID.randomUUID().toString());
         System.out.println("commandId=" + commandId + " (re-run with the same id to check idempotency manually)");
 
         // when
