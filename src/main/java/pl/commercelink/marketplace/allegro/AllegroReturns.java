@@ -92,8 +92,10 @@ class AllegroReturns implements MarketplaceReturns {
                 .toList();
         // Deposit-bearing offers (Polish deposit-return system) are refunded separately from the item price.
         List<AllegroRefundRequest.Deposit> deposits = new ArrayList<>();
-        for (String lineItemId : quantityByLineItem.keySet()) {
-            depositOf(form, lineItemId).ifPresent(d -> deposits.add(new AllegroRefundRequest.Deposit(lineItemId, d)));
+        for (Map.Entry<String, Integer> entry : quantityByLineItem.entrySet()) {
+            String lineItemId = entry.getKey();
+            depositOf(form, lineItemId, entry.getValue())
+                    .ifPresent(d -> deposits.add(new AllegroRefundRequest.Deposit(lineItemId, d)));
         }
         AllegroRefundRequest request = new AllegroRefundRequest(
                 new AllegroRefundRequest.Ref(form.payment().id()),
@@ -281,14 +283,28 @@ class AllegroReturns implements MarketplaceReturns {
         return new AllegroRefundRequest.Delivery(new AllegroRefundRequest.Money(cost.amount(), cost.currency()));
     }
 
-    private static Optional<AllegroRefundRequest.Money> depositOf(AllegroCheckoutForm form, String lineItemId) {
+    /**
+     * checkout-forms.lineItems[].deposit.value is treated here as a PER-UNIT amount - unconfirmed, to be
+     * verified on the sandbox - by symmetry with how this module already treats LineItem.price elsewhere
+     * (AllegroOrdersImport pairs price with quantity as a unit price). The refund request field is named
+     * totalValue, so a multi-unit refund must scale it by the refunded quantity rather than forwarding the
+     * checkout form's value verbatim, or a partial-quantity refund would under- or over-refund the deposit.
+     * The amount is validated the same way deliveryRefund validates the delivery cost: a null or
+     * non-positive value is omitted rather than forwarded into a money POST.
+     */
+    private static Optional<AllegroRefundRequest.Money> depositOf(AllegroCheckoutForm form, String lineItemId, int quantity) {
         if (form.lineItems() == null) {
             return Optional.empty();
         }
         for (AllegroCheckoutForm.LineItem lineItem : form.lineItems()) {
             if (lineItemId.equals(lineItem.id()) && lineItem.deposit() != null && lineItem.deposit().value() != null) {
                 AllegroCheckoutForm.Cost value = lineItem.deposit().value();
-                return Optional.of(new AllegroRefundRequest.Money(value.amount(), value.currency()));
+                BigDecimal perUnit = parseAmount(value.amount());
+                if (perUnit == null || perUnit.signum() <= 0) {
+                    return Optional.empty();
+                }
+                BigDecimal total = perUnit.multiply(BigDecimal.valueOf(quantity));
+                return Optional.of(new AllegroRefundRequest.Money(total.toPlainString(), value.currency()));
             }
         }
         return Optional.empty();

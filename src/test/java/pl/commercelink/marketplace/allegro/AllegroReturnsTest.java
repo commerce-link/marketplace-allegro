@@ -359,6 +359,45 @@ class AllegroReturnsTest {
     }
 
     @Test
+    void refundScalesDepositByTheRefundedQuantity() {
+        // given: a 3-unit deposit-bearing line item, all 3 units being refunded - deposit.value is treated
+        // as per unit (same convention as LineItem.price elsewhere), so the total must scale with quantity
+        stubCheckoutForm(checkoutForm(lineItemWithDeposit("li-1", "111", 3, "1.00", "PLN")));
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+        ReturnRefund refund = new ReturnRefund(List.of(new ReturnRefund.Item("111", 3)), false, "cmd-1", null);
+
+        // when
+        returns.refundReturn(ORDER_ID, "r-1", refund);
+
+        // then
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/payments/refunds"), body.capture(), eq(AllegroRefundResponse.class));
+        AllegroRefundRequest request = (AllegroRefundRequest) body.getValue();
+        assertEquals(1, request.deposits().size());
+        assertEquals("li-1", request.deposits().get(0).lineItemId());
+        assertEquals("3.00", request.deposits().get(0).totalValue().amount());
+        assertEquals("PLN", request.deposits().get(0).totalValue().currency());
+    }
+
+    @Test
+    void refundOmitsANonNumericOrNonPositiveDeposit() {
+        // given: one line item with a garbled deposit value, one with a zero deposit
+        stubCheckoutForm(checkoutForm(lineItemWithDeposit("li-1", "111", 1, "not-a-number", "PLN"),
+                lineItemWithDeposit("li-2", "222", 1, "0.00", "PLN")));
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+        ReturnRefund refund = new ReturnRefund(
+                List.of(new ReturnRefund.Item("111", 1), new ReturnRefund.Item("222", 1)), false, "cmd-1", null);
+
+        // when
+        returns.refundReturn(ORDER_ID, "r-1", refund);
+
+        // then: neither garbled nor zero/negative deposits are forwarded into the money POST
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/payments/refunds"), body.capture(), eq(AllegroRefundResponse.class));
+        assertNull(((AllegroRefundRequest) body.getValue()).deposits());
+    }
+
+    @Test
     void refundMergesDuplicateLineItemIdsIntoOneEntry() {
         // given: two refund items resolving to the same checkout-form line item
         stubCheckoutForm(checkoutForm(lineItem("li-1", "offer-1", "sku-a", 3)));
