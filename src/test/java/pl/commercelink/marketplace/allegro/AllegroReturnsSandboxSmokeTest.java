@@ -68,7 +68,7 @@ class AllegroReturnsSandboxSmokeTest {
 
         // when
         returns().refundReturn(orderId, "smoke-" + commandId,
-                new ReturnRefund(List.of(new ReturnRefund.Item(mfn, 1)), false, commandId));
+                new ReturnRefund(List.of(new ReturnRefund.Item(mfn, 1)), false, commandId, null));
 
         // then: no exception; verify in the sandbox panel or GET /payments/refunds?order.id=
     }

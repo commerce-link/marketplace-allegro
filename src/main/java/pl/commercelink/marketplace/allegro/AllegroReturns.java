@@ -103,7 +103,8 @@ class AllegroReturns implements MarketplaceReturns {
                 lineItems,
                 deposits.isEmpty() ? null : deposits,
                 refund.refundDelivery() ? deliveryRefund(form) : null,
-                "Zwrot " + externalReturnId);
+                refund.referenceNumber() != null ? "Zwrot " + refund.referenceNumber()
+                        : "Zwrot " + externalReturnId);
         AllegroRefundResponse response = restApi.postWithAuthRetry("/payments/refunds", request, AllegroRefundResponse.class);
         LOGGER.log(System.Logger.Level.INFO, "Allegro refund {0} for return {1} accepted with status {2}",
                 response == null ? null : response.id(), externalReturnId, response == null ? null : response.status());
