@@ -11,6 +11,7 @@ record AllegroRefundRequest(
         String commandId,
         String reason,
         List<LineItem> lineItems,
+        List<Deposit> deposits,
         Delivery delivery,
         String sellerComment
 ) {
@@ -19,6 +20,9 @@ record AllegroRefundRequest(
     }
 
     record LineItem(String id, String type, long quantity) {
+    }
+
+    record Deposit(String lineItemId, Money totalValue) {
     }
 
     record Delivery(Money value) {

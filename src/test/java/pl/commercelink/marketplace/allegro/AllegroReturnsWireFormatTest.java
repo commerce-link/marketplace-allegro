@@ -100,6 +100,7 @@ class AllegroReturnsWireFormatTest {
                 "cmd-1",
                 "REFUND",
                 List.of(new AllegroRefundRequest.LineItem("li-1", "QUANTITY", 2)),
+                null,
                 new AllegroRefundRequest.Delivery(new AllegroRefundRequest.Money("12.99", "PLN")),
                 "Return XGQX/2026");
 
@@ -114,11 +115,32 @@ class AllegroReturnsWireFormatTest {
     }
 
     @Test
+    void serializesRefundWithDepositsForDepositBearingLineItems() throws Exception {
+        // given / when
+        String json = objectMapper.writeValueAsString(refundRequestWithDeposit());
+
+        // then
+        assertTrue(json.contains("\"deposits\":[{\"lineItemId\":\"li-1\",\"totalValue\":{\"amount\":\"1.00\",\"currency\":\"PLN\"}}]"));
+    }
+
+    private static AllegroRefundRequest refundRequestWithDeposit() {
+        return new AllegroRefundRequest(
+                new AllegroRefundRequest.Ref("pay-1"),
+                new AllegroRefundRequest.Ref("order-1"),
+                "cmd-1",
+                "REFUND",
+                List.of(new AllegroRefundRequest.LineItem("li-1", "QUANTITY", 1)),
+                List.of(new AllegroRefundRequest.Deposit("li-1", new AllegroRefundRequest.Money("1.00", "PLN"))),
+                null,
+                "Return XGQX/2026");
+    }
+
+    @Test
     void serializesRefundRequestWithoutDelivery() throws Exception {
         // given
         AllegroRefundRequest request = new AllegroRefundRequest(
                 new AllegroRefundRequest.Ref("pay-1"), new AllegroRefundRequest.Ref("order-1"), "cmd-1", "REFUND",
-                List.of(new AllegroRefundRequest.LineItem("li-1", "QUANTITY", 1)), null, null);
+                List.of(new AllegroRefundRequest.LineItem("li-1", "QUANTITY", 1)), null, null, null);
 
         // when
         String json = objectMapper.writeValueAsString(request);

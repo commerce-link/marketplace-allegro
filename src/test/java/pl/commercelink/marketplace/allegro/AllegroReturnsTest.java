@@ -58,7 +58,15 @@ class AllegroReturnsTest {
         return new AllegroCheckoutForm.LineItem(id,
                 new AllegroCheckoutForm.Offer(offerId, "Item " + offerId,
                         externalId == null ? null : new AllegroCheckoutForm.External(externalId)),
-                qty, new AllegroCheckoutForm.Price("100.00", "PLN"));
+                qty, new AllegroCheckoutForm.Price("100.00", "PLN"), null);
+    }
+
+    private static AllegroCheckoutForm.LineItem lineItemWithDeposit(String id, String offerId, long qty,
+                                                                     String depositAmount, String depositCurrency) {
+        return new AllegroCheckoutForm.LineItem(id,
+                new AllegroCheckoutForm.Offer(offerId, "Item " + offerId, null),
+                qty, new AllegroCheckoutForm.Price("100.00", "PLN"),
+                new AllegroCheckoutForm.Deposit(new AllegroCheckoutForm.Cost(depositAmount, depositCurrency)));
     }
 
     private void stubReturnsPage(AllegroCustomerReturn... returns) {
@@ -295,6 +303,43 @@ class AllegroReturnsTest {
         assertEquals("li-2", request.lineItems().get(1).id());
         assertNull(request.delivery());
         assertEquals("Zwrot r-1", request.sellerComment());
+    }
+
+    @Test
+    void refundIncludesDepositForDepositBearingLineItem() {
+        // given
+        stubCheckoutForm(checkoutForm(lineItemWithDeposit("li-1", "111", 1, "1.00", "PLN"),
+                lineItem("li-2", "222", null, 1)));
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+        ReturnRefund refund = new ReturnRefund(
+                List.of(new ReturnRefund.Item("111", 1), new ReturnRefund.Item("222", 1)), false, "cmd-1");
+
+        // when
+        returns.refundReturn(ORDER_ID, "r-1", refund);
+
+        // then
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/payments/refunds"), body.capture(), eq(AllegroRefundResponse.class));
+        AllegroRefundRequest request = (AllegroRefundRequest) body.getValue();
+        assertEquals(1, request.deposits().size());
+        assertEquals("li-1", request.deposits().get(0).lineItemId());
+        assertEquals("1.00", request.deposits().get(0).totalValue().amount());
+        assertEquals("PLN", request.deposits().get(0).totalValue().currency());
+    }
+
+    @Test
+    void refundOmitsDepositsWhenNoLineItemCarriesOne() {
+        // given
+        stubCheckoutForm(checkoutForm(lineItem("li-1", "111", null, 1)));
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+
+        // when
+        returns.refundReturn(ORDER_ID, "r-1", new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), false, "cmd-1"));
+
+        // then
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/payments/refunds"), body.capture(), eq(AllegroRefundResponse.class));
+        assertNull(((AllegroRefundRequest) body.getValue()).deposits());
     }
 
     @Test

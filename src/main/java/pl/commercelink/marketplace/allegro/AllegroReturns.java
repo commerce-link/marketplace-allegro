@@ -90,12 +90,18 @@ class AllegroReturns implements MarketplaceReturns {
         List<AllegroRefundRequest.LineItem> lineItems = quantityByLineItem.entrySet().stream()
                 .map(e -> new AllegroRefundRequest.LineItem(e.getKey(), "QUANTITY", e.getValue()))
                 .toList();
+        // Deposit-bearing offers (Polish deposit-return system) are refunded separately from the item price.
+        List<AllegroRefundRequest.Deposit> deposits = new ArrayList<>();
+        for (String lineItemId : quantityByLineItem.keySet()) {
+            depositOf(form, lineItemId).ifPresent(d -> deposits.add(new AllegroRefundRequest.Deposit(lineItemId, d)));
+        }
         AllegroRefundRequest request = new AllegroRefundRequest(
                 new AllegroRefundRequest.Ref(form.payment().id()),
                 new AllegroRefundRequest.Ref(externalOrderId),
                 refund.commandId(),
                 "REFUND",
                 lineItems,
+                deposits.isEmpty() ? null : deposits,
                 refund.refundDelivery() ? deliveryRefund(form) : null,
                 "Zwrot " + externalReturnId);
         AllegroRefundResponse response = restApi.postWithAuthRetry("/payments/refunds", request, AllegroRefundResponse.class);
@@ -272,6 +278,19 @@ class AllegroReturns implements MarketplaceReturns {
             return null;
         }
         return new AllegroRefundRequest.Delivery(new AllegroRefundRequest.Money(cost.amount(), cost.currency()));
+    }
+
+    private static Optional<AllegroRefundRequest.Money> depositOf(AllegroCheckoutForm form, String lineItemId) {
+        if (form.lineItems() == null) {
+            return Optional.empty();
+        }
+        for (AllegroCheckoutForm.LineItem lineItem : form.lineItems()) {
+            if (lineItemId.equals(lineItem.id()) && lineItem.deposit() != null && lineItem.deposit().value() != null) {
+                AllegroCheckoutForm.Cost value = lineItem.deposit().value();
+                return Optional.of(new AllegroRefundRequest.Money(value.amount(), value.currency()));
+            }
+        }
+        return Optional.empty();
     }
 
     private static BigDecimal parseAmount(String amount) {
