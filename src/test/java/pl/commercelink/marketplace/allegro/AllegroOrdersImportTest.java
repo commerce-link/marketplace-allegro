@@ -99,7 +99,7 @@ class AllegroOrdersImportTest {
 
         // then
         assertEquals(1, orders.size());
-        assertEquals("CashOnDelivery", orders.get(0).payment().type());
+        assertEquals("CashOnDelivery", orders.get(0).paymentType());
     }
 
     @Test
@@ -266,8 +266,8 @@ class AllegroOrdersImportTest {
         assertEquals(2, order.products().get(0).quantity());
         assertEquals(BigDecimal.ZERO, order.products().get(0).commission());
         assertEquals(new BigDecimal("15.99"), order.shipping().cost());
-        assertEquals("OnlinePayment", order.payment().type());
-        assertEquals("pay-1", order.payment().transactionId());
+        assertEquals("OnlinePayment", order.paymentType());
+        assertEquals("pay-1", order.paymentTransactionId());
         assertEquals(MarketplaceCustomer.CustomerType.INDIVIDUAL, order.customer().customerType());
         assertEquals("Jan Kowalski", order.customer().name());
         assertEquals("buyer+42@user.allegromail.pl", order.customer().email());
@@ -616,7 +616,7 @@ class AllegroOrdersImportTest {
         AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
 
         // when / then
-        assertEquals("BankTransfer", ordersImport.fetchOrders().get(0).payment().type());
+        assertEquals("BankTransfer", ordersImport.fetchOrders().get(0).paymentType());
     }
 
     @Test
@@ -660,8 +660,8 @@ class AllegroOrdersImportTest {
         List<MarketplaceOrder> orders = ordersImport.fetchOrders();
 
         // then
-        assertEquals("BankTransfer", orders.get(0).payment().type());
-        assertEquals("BankTransfer", orders.get(1).payment().type());
+        assertEquals("BankTransfer", orders.get(0).paymentType());
+        assertEquals("BankTransfer", orders.get(1).paymentType());
     }
 
     @Test
