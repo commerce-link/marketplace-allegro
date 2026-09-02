@@ -86,12 +86,14 @@ class AllegroOrdersImport {
                 form.id(),
                 toMarketplaceCustomer(form),
                 products,
-                new BigDecimal(form.delivery().cost().amount()),
-                resolveShippingCarrier(form.delivery()),
-                resolvePaymentType(form.payment().type()),
-                form.payment().id(),
-                toPickupPoint(form.delivery()),
-                form.delivery().toEstimatedShippingAt());
+                new MarketplaceOrder.Shipping(
+                        new BigDecimal(form.delivery().cost().amount()),
+                        resolveShippingCarrier(form.delivery()),
+                        toPickupPoint(form.delivery()),
+                        form.delivery().toEstimatedShippingAt()),
+                new MarketplaceOrder.Payment(
+                        resolvePaymentType(form.payment().type()),
+                        form.payment().id()));
     }
 
     private String resolveManufacturerCode(AllegroCheckoutForm.Offer offer) {
