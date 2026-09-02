@@ -90,7 +90,8 @@ class AllegroOrdersImport {
                 resolveShippingCarrier(form.delivery()),
                 resolvePaymentType(form.payment().type()),
                 form.payment().id(),
-                toPickupPoint(form.delivery()));
+                toPickupPoint(form.delivery()),
+                form.delivery().toEstimatedShippingAt());
     }
 
     private String resolveManufacturerCode(AllegroCheckoutForm.Offer offer) {
