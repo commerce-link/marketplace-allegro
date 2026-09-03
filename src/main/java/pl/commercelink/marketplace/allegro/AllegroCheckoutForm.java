@@ -2,6 +2,10 @@ package pl.commercelink.marketplace.allegro;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -30,7 +34,40 @@ record AllegroCheckoutForm(
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Delivery(DeliveryAddress address, Cost cost, PickupPoint pickupPoint, Method method) {
+    record Delivery(DeliveryAddress address, Cost cost, PickupPoint pickupPoint, Method method, Time time) {
+
+        Delivery(DeliveryAddress address, Cost cost, PickupPoint pickupPoint, Method method) {
+            this(address, cost, pickupPoint, method, null);
+        }
+
+        LocalDate toEstimatedShippingAt() {
+            return time == null ? null : time.toEstimatedShippingAt();
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Time(String from, String to, Dispatch dispatch) {
+
+        LocalDate toEstimatedShippingAt() {
+            return dispatch == null ? null : dispatch.toEstimatedShippingAt();
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Dispatch(String from, String to) {
+
+        private static final ZoneId SELLER_ZONE = ZoneId.of("Europe/Warsaw");
+
+        LocalDate toEstimatedShippingAt() {
+            if (to == null || to.isBlank()) {
+                return null;
+            }
+            try {
+                return OffsetDateTime.parse(to.trim()).atZoneSameInstant(SELLER_ZONE).toLocalDate();
+            } catch (DateTimeParseException e) {
+                return null;
+            }
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
