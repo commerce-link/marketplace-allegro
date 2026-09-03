@@ -1,5 +1,6 @@
 package pl.commercelink.marketplace.allegro;
 
+import pl.commercelink.marketplace.api.MarketplaceExportReport;
 import pl.commercelink.marketplace.api.MarketplaceOffer;
 import pl.commercelink.rest.client.HttpClientException;
 import pl.commercelink.rest.client.RestApiWithRetry;
@@ -27,7 +28,8 @@ class AllegroOfferExport {
         this.restApi = restApi;
     }
 
-    void export(List<MarketplaceOffer> toPublish, List<MarketplaceOffer> toRemove) {
+    void export(List<MarketplaceOffer> toPublish, List<MarketplaceOffer> toRemove,
+                MarketplaceExportReport report) {
         Map<String, AllegroOffersResponse.OfferSummary> existing = fetchExistingOffers();
         boolean anyCreates = toPublish.stream()
                 .anyMatch(o -> !existing.containsKey(o.productId()) && o.quantity() > 0
@@ -52,13 +54,13 @@ class AllegroOfferExport {
             AllegroOffersResponse.OfferSummary current = existing.get(offer.productId());
             try {
                 if (current == null) {
-                    createOffer(offer, shippingRatesId, categoryParameters, gpsr);
+                    createOffer(offer, shippingRatesId, categoryParameters, gpsr, report);
                 } else if (needsUpdate(offer, current)) {
                     restApi.patchWithAuthRetry("/sale/product-offers/" + current.id(),
                             AllegroOfferRequest.updateOffer(offer), Void.class);
                 }
             } catch (HttpClientException e) {
-                handleOfferError(offer.productId(), e);
+                handleOfferError(offer.productId(), e, report);
             }
         }
 
@@ -71,46 +73,40 @@ class AllegroOfferExport {
                 restApi.patchWithAuthRetry("/sale/product-offers/" + current.id(),
                         AllegroOfferRequest.endOffer(), Void.class);
             } catch (HttpClientException e) {
-                handleOfferError(offer.productId(), e);
+                handleOfferError(offer.productId(), e, report);
             }
         }
     }
 
     private void createOffer(MarketplaceOffer offer, String shippingRatesId, Map<String, Set<String>> categoryParameters,
-                              AllegroGpsrDictionaries gpsr) {
+                              AllegroGpsrDictionaries gpsr, MarketplaceExportReport report) {
         if (offer.quantity() <= 0) {
+            reject(offer.productId(), AllegroRejection.newOfferWithoutQuantity(), report);
             return;
         }
         if (offer.ean() == null || offer.ean().isBlank()) {
-            LOGGER.log(System.Logger.Level.WARNING,
-                    "Skipping Allegro offer create for {0}: missing EAN", offer.productId());
+            reject(offer.productId(), AllegroRejection.missingEan(), report);
             return;
         }
         if (shippingRatesId == null) {
+            reject(offer.productId(), AllegroRejection.noShippingRates(), report);
             return;
         }
         AllegroProductsResponse.CatalogProduct product = findCatalogProduct(offer.ean());
         if (product == null) {
-            LOGGER.log(System.Logger.Level.WARNING,
-                    "Skipping Allegro offer create for {0}: EAN {1} not found in Allegro catalog",
-                    offer.productId(), offer.ean());
+            reject(offer.productId(), AllegroRejection.eanNotInCatalog(offer.ean()), report);
             return;
         }
         List<String> images = product.images() == null ? List.of()
                 : product.images().stream().map(AllegroProductsResponse.Image::url).limit(MAX_OFFER_IMAGES).toList();
         if (images.isEmpty()) {
-            LOGGER.log(System.Logger.Level.WARNING,
-                    "Skipping Allegro offer create for {0}: catalog product {1} has no images",
-                    offer.productId(), product.id());
+            reject(offer.productId(), AllegroRejection.catalogProductWithoutImages(product.id()), report);
             return;
         }
         AllegroOfferRequest.ResponsibleProducer responsibleProducer =
                 resolveResponsibleProducer(product, gpsr, offer);
         if (responsibleProducer == null) {
-            LOGGER.log(System.Logger.Level.WARNING,
-                    "Skipping Allegro offer create for {0}: catalog product {1} has no responsible producer"
-                            + " and account dictionary has no entry named \"{2}\"",
-                    offer.productId(), product.id(), offer.brand());
+            reject(offer.productId(), AllegroRejection.noResponsibleProducer(product.id(), offer.brand()), report);
             return;
         }
         AllegroOfferRequest.ResponsiblePerson responsiblePerson = gpsr.responsiblePersonId(offer.brand())
@@ -252,11 +248,15 @@ class AllegroOfferExport {
         return current.publication() != null && STATUS_ENDED.equals(current.publication().status());
     }
 
-    private void handleOfferError(String productId, HttpClientException e) {
+    private void handleOfferError(String productId, HttpClientException e, MarketplaceExportReport report) {
         if (e.getStatusCode() >= 500) {
             throw e;
         }
-        LOGGER.log(System.Logger.Level.WARNING,
-                "Skipping Allegro offer {0}: HTTP {1} {2}", productId, e.getStatusCode(), e.getResponseBody());
+        reject(productId, AllegroRejection.httpError(e.getStatusCode(), e.getResponseBody()), report);
+    }
+
+    private void reject(String productId, AllegroRejection rejection, MarketplaceExportReport report) {
+        report.rejected(productId, rejection.code(), rejection.message());
+        LOGGER.log(rejection.level(), "Skipping Allegro offer {0}: {1}", productId, rejection.message());
     }
 }
