@@ -41,7 +41,8 @@ class AllegroSandboxSmokeTest {
         // then
         assertNotNull(orders);
         System.out.println("Imported paid orders: " + orders.size());
-        orders.forEach(o -> System.out.println("  " + o.externalOrderId() + " " + o.paymentType()));
+        orders.forEach(o -> System.out.println("  " + o.externalOrderId() + " " + o.paymentType()
+                + " estimatedShippingAt=" + o.shipping().estimatedShippingAt()));
     }
 
     private String fetchAccessToken(String clientId, String clientSecret, String refreshToken) throws Exception {

@@ -265,14 +265,14 @@ class AllegroOrdersImportTest {
         assertEquals(new BigDecimal("2500.00"), order.products().get(0).priceGross());
         assertEquals(2, order.products().get(0).quantity());
         assertEquals(BigDecimal.ZERO, order.products().get(0).commission());
-        assertEquals(new BigDecimal("15.99"), order.shippingCost());
+        assertEquals(new BigDecimal("15.99"), order.shipping().cost());
         assertEquals("OnlinePayment", order.paymentType());
         assertEquals("pay-1", order.paymentTransactionId());
         assertEquals(MarketplaceCustomer.CustomerType.INDIVIDUAL, order.customer().customerType());
         assertEquals("Jan Kowalski", order.customer().name());
         assertEquals("buyer+42@user.allegromail.pl", order.customer().email());
         assertEquals("+48555666777", order.customer().phone());
-        assertNull(order.pickupPoint());
+        assertNull(order.shipping().pickupPoint());
     }
 
     @Test
@@ -302,7 +302,7 @@ class AllegroOrdersImportTest {
         assertEquals("Prosta 1", shipping.street());
         assertEquals("00-001", shipping.postalCode());
         assertEquals("Warszawa", shipping.city());
-        assertEquals("ALP123", orders.get(0).pickupPoint().code());
+        assertEquals("ALP123", orders.get(0).shipping().pickupPoint().code());
     }
 
     @Test
@@ -328,7 +328,7 @@ class AllegroOrdersImportTest {
         List<MarketplaceOrder> orders = ordersImport.fetchOrders();
 
         // then
-        assertEquals("InPost Paczkomaty 24/7", orders.get(0).shippingCarrier());
+        assertEquals("InPost Paczkomaty 24/7", orders.get(0).shipping().carrier());
     }
 
     @Test
@@ -354,7 +354,7 @@ class AllegroOrdersImportTest {
         List<MarketplaceOrder> orders = ordersImport.fetchOrders();
 
         // then
-        assertEquals("Kurier XYZ", orders.get(0).shippingCarrier());
+        assertEquals("Kurier XYZ", orders.get(0).shipping().carrier());
     }
 
     @Test
@@ -440,7 +440,7 @@ class AllegroOrdersImportTest {
         assertEquals("Prosta 1", shipping.street());
         assertEquals("00-001", shipping.postalCode());
         assertEquals("Warszawa", shipping.city());
-        assertEquals("ALP999", orders.get(0).pickupPoint().code());
+        assertEquals("ALP999", orders.get(0).shipping().pickupPoint().code());
     }
 
     @Test
