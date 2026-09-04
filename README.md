@@ -60,7 +60,7 @@ Offer parameters 224017 (manufacturer code) and 237206 (model) are added only
 when they appear on the parameter list of the product's category
 (`GET /sale/categories/{id}/parameters`).
 
-## Customer returns (0.4.0)
+## Customer returns (0.5.0)
 
 The provider exposes `MarketplaceProvider.returns()` backed by `AllegroReturns`:
 
