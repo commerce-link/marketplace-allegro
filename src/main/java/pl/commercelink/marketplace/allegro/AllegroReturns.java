@@ -27,11 +27,11 @@ class AllegroReturns implements MarketplaceReturns {
 
     private static final System.Logger LOGGER = System.getLogger(AllegroReturns.class.getName());
 
-    static final String BETA_MEDIA_TYPE = "application/vnd.allegro.beta.v1+json";
-    static final Map<String, String> BETA_ACCEPT_ONLY = Map.of("Accept", BETA_MEDIA_TYPE);
-    static final Map<String, String> BETA_HEADERS = Map.of("Accept", BETA_MEDIA_TYPE, "Content-Type", BETA_MEDIA_TYPE);
-    static final int RETURNS_WINDOW_DAYS = 60;
-    static final int PAGE_SIZE = 1000;
+    private static final String BETA_MEDIA_TYPE = "application/vnd.allegro.beta.v1+json";
+    private static final Map<String, String> BETA_ACCEPT_ONLY = Map.of("Accept", BETA_MEDIA_TYPE);
+    private static final Map<String, String> BETA_HEADERS = Map.of("Accept", BETA_MEDIA_TYPE, "Content-Type", BETA_MEDIA_TYPE);
+    private static final int RETURNS_WINDOW_DAYS = 60;
+    private static final int PAGE_SIZE = 1000;
     private static final int MAX_REJECTION_REASON = 250;
 
     private static final String CUSTOMER_RETURNS = "/order/customer-returns";
@@ -116,8 +116,9 @@ class AllegroReturns implements MarketplaceReturns {
                 refund.refundDelivery() ? deliveryRefund(form) : null,
                 "Zwrot " + externalReturnId);
         AllegroRefundResponse response = restApi.postWithAuthRetry("/payments/refunds", request, AllegroRefundResponse.class);
-        LOGGER.log(System.Logger.Level.INFO, "Allegro refund {0} for return {1} accepted with status {2}",
-                response == null ? null : response.id(), externalReturnId, response == null ? null : response.status());
+        if (response == null) {
+            LOGGER.log(System.Logger.Level.WARNING, "Allegro returned an empty body for the refund of return {0}", externalReturnId);
+        }
     }
 
     @Override
