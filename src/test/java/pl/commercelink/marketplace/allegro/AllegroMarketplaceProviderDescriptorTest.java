@@ -131,4 +131,19 @@ class AllegroMarketplaceProviderDescriptorTest {
         // then
         assertEquals("restApi missing in provider context", exception.getMessage());
     }
+
+    @Test
+    void providerExposesCustomerReturns() {
+        // given
+        AllegroMarketplaceProviderDescriptor descriptor = new AllegroMarketplaceProviderDescriptor();
+        RestApiWithRetry restApi = mock(RestApiWithRetry.class);
+
+        // when
+        MarketplaceProvider provider = descriptor.create(
+                Map.of("clientId", "id", "clientSecret", "secret"), Map.of("restApi", restApi));
+
+        // then
+        assertTrue(provider.returns().isPresent());
+        assertInstanceOf(AllegroReturns.class, provider.returns().get());
+    }
 }
