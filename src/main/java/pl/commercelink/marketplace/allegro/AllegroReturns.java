@@ -82,32 +82,29 @@ class AllegroReturns implements MarketplaceReturns {
         if (form.payment() == null || form.payment().id() == null) {
             throw new IllegalStateException("Allegro checkout form " + externalOrderId + " has no payment id");
         }
-        // A malformed payload with a repeated lineItems[].id is rejected by Allegro; merge defensively
-        // so no caller can emit one.
-        Map<String, Integer> quantityByLineItem = new LinkedHashMap<>();
-        for (ReturnRefund.Item item : refund.items()) {
-            String lineItemId = lineItemIdForManufacturerCode(form, item.offerKey(), externalReturnId);
-            quantityByLineItem.merge(lineItemId, item.quantity(), Integer::sum);
+        if (form.lineItems() == null) {
+            throw new IllegalStateException("Allegro checkout form " + externalOrderId + " has no line items");
         }
-        // Fail before the POST: Allegro rejects an over-refund with a 422 that only surfaces after the
-        // caller has already restocked the goods on the app side.
-        for (AllegroCheckoutForm.LineItem lineItem : form.lineItems()) {
-            Integer requested = quantityByLineItem.get(lineItem.id());
-            if (requested != null && requested > lineItem.quantity()) {
-                throw new IllegalStateException("Refund of " + requested + " units requested for line item "
+        // A payload with a repeated lineItems[].id is rejected by Allegro; merge defensively so no caller
+        // can emit one. Line item ids are unique within a checkout form, so the record is a safe map key.
+        Map<AllegroCheckoutForm.LineItem, Integer> quantityByLineItem = new LinkedHashMap<>();
+        for (ReturnRefund.Item item : refund.items()) {
+            quantityByLineItem.merge(resolveLineItem(form, item.offerKey(), externalReturnId), item.quantity(), Integer::sum);
+        }
+        List<AllegroRefundRequest.LineItem> lineItems = new ArrayList<>();
+        List<AllegroRefundRequest.Deposit> deposits = new ArrayList<>();
+        for (Map.Entry<AllegroCheckoutForm.LineItem, Integer> entry : quantityByLineItem.entrySet()) {
+            AllegroCheckoutForm.LineItem lineItem = entry.getKey();
+            int quantity = entry.getValue();
+            // Fail before the POST: Allegro rejects an over-refund with a 422 that only surfaces after the
+            // caller has already restocked the goods on the app side.
+            if (quantity > lineItem.quantity()) {
+                throw new IllegalStateException("Refund of " + quantity + " units requested for line item "
                         + lineItem.id() + " of order " + externalOrderId + ", but only " + lineItem.quantity()
                         + " were ordered");
             }
-        }
-        List<AllegroRefundRequest.LineItem> lineItems = quantityByLineItem.entrySet().stream()
-                .map(e -> new AllegroRefundRequest.LineItem(e.getKey(), LINE_ITEM_TYPE_QUANTITY, e.getValue()))
-                .toList();
-        // Deposit-bearing offers (Polish deposit-return system) are refunded separately from the item price.
-        List<AllegroRefundRequest.Deposit> deposits = new ArrayList<>();
-        for (Map.Entry<String, Integer> entry : quantityByLineItem.entrySet()) {
-            String lineItemId = entry.getKey();
-            depositOf(form, lineItemId, entry.getValue())
-                    .ifPresent(d -> deposits.add(new AllegroRefundRequest.Deposit(lineItemId, d)));
+            lineItems.add(new AllegroRefundRequest.LineItem(lineItem.id(), LINE_ITEM_TYPE_QUANTITY, quantity));
+            depositOf(lineItem, quantity).ifPresent(d -> deposits.add(new AllegroRefundRequest.Deposit(lineItem.id(), d)));
         }
         AllegroRefundRequest request = new AllegroRefundRequest(
                 new AllegroRefundRequest.Ref(form.payment().id()),
@@ -253,23 +250,27 @@ class AllegroReturns implements MarketplaceReturns {
         return isoInstant == null ? null : LocalDateTime.ofInstant(Instant.parse(isoInstant), ZoneOffset.UTC);
     }
 
-    private static String lineItemIdForManufacturerCode(AllegroCheckoutForm form, String manufacturerCode,
-                                                        String externalReturnId) {
-        if (form.lineItems() != null) {
-            for (AllegroCheckoutForm.LineItem lineItem : form.lineItems()) {
-                if (lineItem.offer() != null && manufacturerCode.equals(AllegroOrdersImport.resolveManufacturerCode(lineItem.offer()))) {
-                    return lineItem.id();
-                }
+    /** Exact key match always wins; the normalised comparison only serves orders imported before the app persisted the raw key. */
+    private static AllegroCheckoutForm.LineItem resolveLineItem(AllegroCheckoutForm form, String offerKey,
+                                                                String externalReturnId) {
+        String normalisedKey = normaliseCode(offerKey);
+        AllegroCheckoutForm.LineItem normalisedMatch = null;
+        for (AllegroCheckoutForm.LineItem lineItem : form.lineItems()) {
+            if (lineItem.offer() == null) {
+                continue;
             }
-            // Orders imported before the app persisted the raw marketplace key send a normalised code.
-            for (AllegroCheckoutForm.LineItem lineItem : form.lineItems()) {
-                if (lineItem.offer() != null && normaliseCode(manufacturerCode)
-                        .equals(normaliseCode(AllegroOrdersImport.resolveManufacturerCode(lineItem.offer())))) {
-                    return lineItem.id();
-                }
+            String code = AllegroOrdersImport.resolveManufacturerCode(lineItem.offer());
+            if (offerKey.equals(code)) {
+                return lineItem;
+            }
+            if (normalisedMatch == null && normalisedKey.equals(normaliseCode(code))) {
+                normalisedMatch = lineItem;
             }
         }
-        throw new IllegalStateException("No Allegro line item matches manufacturer code " + manufacturerCode
+        if (normalisedMatch != null) {
+            return normalisedMatch;
+        }
+        throw new IllegalStateException("No Allegro line item matches offer key " + offerKey
                 + " in order " + form.id() + " for return " + externalReturnId);
     }
 
@@ -297,27 +298,20 @@ class AllegroReturns implements MarketplaceReturns {
      * checkout-forms.lineItems[].deposit.value is treated here as a PER-UNIT amount - unconfirmed, to be
      * verified on the sandbox - by symmetry with how this module already treats LineItem.price elsewhere
      * (AllegroOrdersImport pairs price with quantity as a unit price). The refund request field is named
-     * totalValue, so a multi-unit refund must scale it by the refunded quantity rather than forwarding the
-     * checkout form's value verbatim, or a partial-quantity refund would under- or over-refund the deposit.
-     * The amount is validated the same way deliveryRefund validates the delivery cost: a null or
-     * non-positive value is omitted rather than forwarded into a money POST.
+     * totalValue, so a multi-unit refund must scale it by the refunded quantity. A null or non-positive
+     * value is omitted rather than forwarded into a money POST, like deliveryRefund does for the delivery cost.
      */
-    private static Optional<AllegroRefundRequest.Money> depositOf(AllegroCheckoutForm form, String lineItemId, int quantity) {
-        if (form.lineItems() == null) {
+    private static Optional<AllegroRefundRequest.Money> depositOf(AllegroCheckoutForm.LineItem lineItem, int quantity) {
+        if (lineItem.deposit() == null || lineItem.deposit().value() == null) {
             return Optional.empty();
         }
-        for (AllegroCheckoutForm.LineItem lineItem : form.lineItems()) {
-            if (lineItemId.equals(lineItem.id()) && lineItem.deposit() != null && lineItem.deposit().value() != null) {
-                AllegroCheckoutForm.Cost value = lineItem.deposit().value();
-                BigDecimal perUnit = parseAmount(value.amount());
-                if (perUnit == null || perUnit.signum() <= 0) {
-                    return Optional.empty();
-                }
-                BigDecimal total = perUnit.multiply(BigDecimal.valueOf(quantity));
-                return Optional.of(new AllegroRefundRequest.Money(total.toPlainString(), value.currency()));
-            }
+        AllegroCheckoutForm.Cost value = lineItem.deposit().value();
+        BigDecimal perUnit = parseAmount(value.amount());
+        if (perUnit == null || perUnit.signum() <= 0) {
+            return Optional.empty();
         }
-        return Optional.empty();
+        BigDecimal total = perUnit.multiply(BigDecimal.valueOf(quantity));
+        return Optional.of(new AllegroRefundRequest.Money(total.toPlainString(), value.currency()));
     }
 
     private static BigDecimal parseAmount(String amount) {

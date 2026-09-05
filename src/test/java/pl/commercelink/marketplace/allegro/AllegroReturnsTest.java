@@ -482,6 +482,21 @@ class AllegroReturnsTest {
     }
 
     @Test
+    void refundPrefersAnExactMatchOverAnEarlierNormalisedOne() {
+        // given: "sku a" normalises to SKUA and sits first; "SKUA" is the exact key and sits second
+        stubCheckoutForm(checkoutForm(lineItem("li-1", "111", "sku a", 1), lineItem("li-2", "222", "SKUA", 1)));
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+
+        // when
+        returns.refundReturn(ORDER_ID, "r-1", new ReturnRefund(List.of(new ReturnRefund.Item("SKUA", 1)), false, "cmd-1"));
+
+        // then
+        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
+        verify(restApi).postWithAuthRetry(eq("/payments/refunds"), body.capture(), eq(AllegroRefundResponse.class));
+        assertEquals("li-2", ((AllegroRefundRequest) body.getValue()).lineItems().get(0).id());
+    }
+
+    @Test
     void refundFailsLoudWhenCheckoutFormMissing() {
         // given
         when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms/" + ORDER_ID), anyMap(), eq(AllegroCheckoutForm.class)))
