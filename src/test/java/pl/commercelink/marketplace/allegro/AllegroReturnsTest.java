@@ -484,6 +484,21 @@ class AllegroReturnsTest {
     }
 
     @Test
+    void refundFailsLoudWhenRequestedQuantityExceedsOrdered() {
+        // given
+        stubCheckoutForm(checkoutForm(lineItem("li-1", "K", null, 1)));
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+
+        // when
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> returns.refundReturn(
+                ORDER_ID, "r-1", new ReturnRefund(List.of(new ReturnRefund.Item("K", 2)), false, "cmd-1", null)));
+
+        // then
+        assertTrue(exception.getMessage().contains("li-1"));
+        verify(restApi, never()).postWithAuthRetry(eq("/payments/refunds"), any(), eq(AllegroRefundResponse.class));
+    }
+
+    @Test
     void refundFallsBackToNormalisedComparisonForLegacyOrders() {
         // given: a legacy order sends an uppercased key, while Allegro holds the raw seller SKU
         stubCheckoutForm(checkoutForm(lineItem("li-1", "111", "k7m2xq9pz4", 1)));

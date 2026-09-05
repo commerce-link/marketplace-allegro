@@ -36,6 +36,8 @@ class AllegroReturns implements MarketplaceReturns {
 
     private static final String CUSTOMER_RETURNS = "/order/customer-returns";
     private static final String CHECKOUT_FORMS = "/order/checkout-forms/";
+    private static final String REFUND_REASON = "REFUND";
+    private static final String LINE_ITEM_TYPE_QUANTITY = "QUANTITY";
 
     private final RestApiWithRetry restApi;
     private final Clock clock;
@@ -87,8 +89,18 @@ class AllegroReturns implements MarketplaceReturns {
             String lineItemId = lineItemIdForManufacturerCode(form, item.manufacturerCode(), externalReturnId);
             quantityByLineItem.merge(lineItemId, item.quantity(), Integer::sum);
         }
+        // Fail before the POST: Allegro rejects an over-refund with a 422 that only surfaces after the
+        // caller has already restocked the goods on the app side.
+        for (AllegroCheckoutForm.LineItem lineItem : form.lineItems()) {
+            Integer requested = quantityByLineItem.get(lineItem.id());
+            if (requested != null && requested > lineItem.quantity()) {
+                throw new IllegalStateException("Refund of " + requested + " units requested for line item "
+                        + lineItem.id() + " of order " + externalOrderId + ", but only " + lineItem.quantity()
+                        + " were ordered");
+            }
+        }
         List<AllegroRefundRequest.LineItem> lineItems = quantityByLineItem.entrySet().stream()
-                .map(e -> new AllegroRefundRequest.LineItem(e.getKey(), "QUANTITY", e.getValue()))
+                .map(e -> new AllegroRefundRequest.LineItem(e.getKey(), LINE_ITEM_TYPE_QUANTITY, e.getValue()))
                 .toList();
         // Deposit-bearing offers (Polish deposit-return system) are refunded separately from the item price.
         List<AllegroRefundRequest.Deposit> deposits = new ArrayList<>();
@@ -101,7 +113,7 @@ class AllegroReturns implements MarketplaceReturns {
                 new AllegroRefundRequest.Ref(form.payment().id()),
                 new AllegroRefundRequest.Ref(externalOrderId),
                 refund.commandId(),
-                "REFUND",
+                REFUND_REASON,
                 lineItems,
                 deposits.isEmpty() ? null : deposits,
                 refund.refundDelivery() ? deliveryRefund(form) : null,
