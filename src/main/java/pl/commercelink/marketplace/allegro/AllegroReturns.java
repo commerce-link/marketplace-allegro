@@ -220,7 +220,7 @@ class AllegroReturns implements MarketplaceReturns {
     }
 
     /** Same rule as order import: seller SKU (offer.external.id) when set, otherwise the offer id. */
-    static String manufacturerCodeForOffer(AllegroCheckoutForm form, String offerId) {
+    private static String manufacturerCodeForOffer(AllegroCheckoutForm form, String offerId) {
         if (form.lineItems() != null) {
             for (AllegroCheckoutForm.LineItem lineItem : form.lineItems()) {
                 if (lineItem.offer() != null && offerId.equals(lineItem.offer().id())) {

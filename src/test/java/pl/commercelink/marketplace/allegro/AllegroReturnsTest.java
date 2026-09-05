@@ -507,6 +507,19 @@ class AllegroReturnsTest {
                 new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), false, "cmd-1")));
     }
 
+    @Test
+    void refundFailsLoudWhenCheckoutFormHasNoLineItems() {
+        // given
+        stubCheckoutForm(new AllegroCheckoutForm(ORDER_ID, null, null,
+                new AllegroCheckoutForm.Payment("pay-1", "ONLINE", null), null, null, null, null));
+        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
+
+        // when / then
+        assertThrows(IllegalStateException.class,
+                () -> returns.refundReturn(ORDER_ID, "r-1", new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), false, "cmd-1")));
+        verify(restApi, never()).postWithAuthRetry(eq("/payments/refunds"), any(), eq(AllegroRefundResponse.class));
+    }
+
     private void stubReturnDetails(String status, AllegroCustomerReturn.Rejection rejection) {
         when(restApi.fetchWithAuthRetry(eq("/order/customer-returns/r-1"), anyMap(), anyMap(), eq(AllegroCustomerReturn.class)))
                 .thenReturn(new AllegroCustomerReturn("r-1", ORDER_ID, null, status, null, false, List.of(), List.of(), rejection));
