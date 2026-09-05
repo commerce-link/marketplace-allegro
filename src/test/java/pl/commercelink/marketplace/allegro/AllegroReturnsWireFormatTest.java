@@ -66,7 +66,6 @@ class AllegroReturnsWireFormatTest {
         assertEquals("2026-08-20T12:13:53.464Z", ret.createdAt());
         assertEquals("7680560740", ret.items().get(0).offerId());
         assertEquals(2, ret.items().get(0).quantity());
-        assertEquals("1234.00", ret.items().get(0).price().amount());
         assertEquals("NOT_AS_DESCRIBED", ret.items().get(0).reason().type());
         assertEquals("Wrong colour", ret.items().get(0).reason().userComment());
         assertEquals("0000123456", ret.parcels().get(0).waybill());

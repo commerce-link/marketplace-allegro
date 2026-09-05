@@ -86,7 +86,7 @@ class AllegroReturns implements MarketplaceReturns {
         // so no caller can emit one.
         Map<String, Integer> quantityByLineItem = new LinkedHashMap<>();
         for (ReturnRefund.Item item : refund.items()) {
-            String lineItemId = lineItemIdForManufacturerCode(form, item.manufacturerCode(), externalReturnId);
+            String lineItemId = lineItemIdForManufacturerCode(form, item.offerKey(), externalReturnId);
             quantityByLineItem.merge(lineItemId, item.quantity(), Integer::sum);
         }
         // Fail before the POST: Allegro rejects an over-refund with a 422 that only surfaces after the
@@ -112,13 +112,12 @@ class AllegroReturns implements MarketplaceReturns {
         AllegroRefundRequest request = new AllegroRefundRequest(
                 new AllegroRefundRequest.Ref(form.payment().id()),
                 new AllegroRefundRequest.Ref(externalOrderId),
-                refund.commandId(),
+                refund.idempotencyKey(),
                 REFUND_REASON,
                 lineItems,
                 deposits.isEmpty() ? null : deposits,
                 refund.refundDelivery() ? deliveryRefund(form) : null,
-                refund.referenceNumber() != null ? "Zwrot " + refund.referenceNumber()
-                        : "Zwrot " + externalReturnId);
+                "Zwrot " + externalReturnId);
         AllegroRefundResponse response = restApi.postWithAuthRetry("/payments/refunds", request, AllegroRefundResponse.class);
         LOGGER.log(System.Logger.Level.INFO, "Allegro refund {0} for return {1} accepted with status {2}",
                 response == null ? null : response.id(), externalReturnId, response == null ? null : response.status());
@@ -210,7 +209,6 @@ class AllegroReturns implements MarketplaceReturns {
                 .map(item -> new MarketplaceReturn.Item(
                         manufacturerCodeForOffer(form, item.offerId()),
                         (int) item.quantity(),
-                        item.price() == null ? null : parseAmount(item.price().amount()),
                         formatReason(item.reason())))
                 .toList();
         List<MarketplaceReturn.Parcel> parcels = ret.parcels() == null ? List.of() : ret.parcels().stream()

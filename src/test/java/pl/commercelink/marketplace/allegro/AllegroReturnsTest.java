@@ -13,7 +13,6 @@ import pl.commercelink.marketplace.api.ReturnRefund;
 import pl.commercelink.marketplace.api.ReturnRejection;
 import pl.commercelink.rest.client.RestApiWithRetry;
 
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -42,7 +41,6 @@ class AllegroReturnsTest {
 
     private static AllegroCustomerReturn.Item item(String offerId, long qty, String reasonType, String comment) {
         return new AllegroCustomerReturn.Item(offerId, qty, "Item " + offerId,
-                new AllegroCustomerReturn.Price("100.00", "PLN"),
                 reasonType == null ? null : new AllegroCustomerReturn.Reason(reasonType, comment));
     }
 
@@ -148,9 +146,8 @@ class AllegroReturnsTest {
         assertEquals(MarketplaceReturnStatus.DECLARED, ret.status());
         assertEquals(LocalDateTime.of(2026, 8, 20, 12, 13, 53, 464_000_000), ret.createdAt());
         MarketplaceReturn.Item item = ret.items().get(0);
-        assertEquals("SKU-1", item.manufacturerCode());
+        assertEquals("SKU-1", item.offerKey());
         assertEquals(2, item.quantity());
-        assertEquals(new BigDecimal("100.00"), item.unitPriceGross());
         assertEquals("NOT_AS_DESCRIBED: Wrong colour", item.reason());
         assertEquals("0000123456", ret.parcels().get(0).trackingNo());
         assertEquals("INPOST", ret.parcels().get(0).carrierId());
@@ -168,25 +165,10 @@ class AllegroReturnsTest {
         List<MarketplaceReturn.Item> items = returns.fetchReturns().get(0).items();
 
         // then
-        assertEquals("111", items.get(0).manufacturerCode());
+        assertEquals("111", items.get(0).offerKey());
         assertEquals("MISTAKE", items.get(0).reason());
-        assertEquals("999", items.get(1).manufacturerCode());
+        assertEquals("999", items.get(1).offerKey());
         assertNull(items.get(1).reason());
-    }
-
-    @Test
-    void toleratesNonNumericPriceInFetchedReturn() {
-        // given
-        AllegroCustomerReturn.Item badPrice = new AllegroCustomerReturn.Item("111", 1, "Item 111",
-                new AllegroCustomerReturn.Price("N/A", "PLN"), null);
-        stubReturnsPage(customerReturn("r-1", "CREATED", List.of(badPrice), List.of()));
-        stubCheckoutForm(checkoutForm(lineItem("li-1", "111", null, 1)));
-
-        // when
-        MarketplaceReturn.Item item = new AllegroReturns(restApi, CLOCK).fetchReturns().get(0).items().get(0);
-
-        // then
-        assertNull(item.unitPriceGross());
     }
 
     @ParameterizedTest
@@ -283,7 +265,7 @@ class AllegroReturnsTest {
         stubCheckoutForm(checkoutForm(lineItem("li-1", "111", "SKU-1", 3), lineItem("li-2", "222", null, 1)));
         AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
         ReturnRefund refund = new ReturnRefund(
-                List.of(new ReturnRefund.Item("SKU-1", 2), new ReturnRefund.Item("222", 1)), false, "cmd-1", null);
+                List.of(new ReturnRefund.Item("SKU-1", 2), new ReturnRefund.Item("222", 1)), false, "cmd-1");
 
         // when
         returns.refundReturn(ORDER_ID, "r-1", refund);
@@ -306,29 +288,13 @@ class AllegroReturnsTest {
     }
 
     @Test
-    void refundUsesReferenceNumberInSellerCommentWhenPresent() {
-        // given: the buyer's own reference is more meaningful to them than our internal return id
-        stubCheckoutForm(checkoutForm(lineItem("li-1", "111", null, 1)));
-        AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
-        ReturnRefund refund = new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), false, "cmd-1", "XGQX/2026");
-
-        // when
-        returns.refundReturn(ORDER_ID, "r-1", refund);
-
-        // then
-        ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
-        verify(restApi).postWithAuthRetry(eq("/payments/refunds"), body.capture(), eq(AllegroRefundResponse.class));
-        assertEquals("Zwrot XGQX/2026", ((AllegroRefundRequest) body.getValue()).sellerComment());
-    }
-
-    @Test
     void refundIncludesDepositForDepositBearingLineItem() {
         // given
         stubCheckoutForm(checkoutForm(lineItemWithDeposit("li-1", "111", 1, "1.00", "PLN"),
                 lineItem("li-2", "222", null, 1)));
         AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
         ReturnRefund refund = new ReturnRefund(
-                List.of(new ReturnRefund.Item("111", 1), new ReturnRefund.Item("222", 1)), false, "cmd-1", null);
+                List.of(new ReturnRefund.Item("111", 1), new ReturnRefund.Item("222", 1)), false, "cmd-1");
 
         // when
         returns.refundReturn(ORDER_ID, "r-1", refund);
@@ -350,7 +316,7 @@ class AllegroReturnsTest {
         AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
 
         // when
-        returns.refundReturn(ORDER_ID, "r-1", new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), false, "cmd-1", null));
+        returns.refundReturn(ORDER_ID, "r-1", new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), false, "cmd-1"));
 
         // then
         ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
@@ -364,7 +330,7 @@ class AllegroReturnsTest {
         // as per unit (same convention as LineItem.price elsewhere), so the total must scale with quantity
         stubCheckoutForm(checkoutForm(lineItemWithDeposit("li-1", "111", 3, "1.00", "PLN")));
         AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
-        ReturnRefund refund = new ReturnRefund(List.of(new ReturnRefund.Item("111", 3)), false, "cmd-1", null);
+        ReturnRefund refund = new ReturnRefund(List.of(new ReturnRefund.Item("111", 3)), false, "cmd-1");
 
         // when
         returns.refundReturn(ORDER_ID, "r-1", refund);
@@ -386,7 +352,7 @@ class AllegroReturnsTest {
                 lineItemWithDeposit("li-2", "222", 1, "0.00", "PLN")));
         AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
         ReturnRefund refund = new ReturnRefund(
-                List.of(new ReturnRefund.Item("111", 1), new ReturnRefund.Item("222", 1)), false, "cmd-1", null);
+                List.of(new ReturnRefund.Item("111", 1), new ReturnRefund.Item("222", 1)), false, "cmd-1");
 
         // when
         returns.refundReturn(ORDER_ID, "r-1", refund);
@@ -405,7 +371,7 @@ class AllegroReturnsTest {
 
         // when
         returns.refundReturn(ORDER_ID, "ret-1", new ReturnRefund(
-                List.of(new ReturnRefund.Item("sku-a", 1), new ReturnRefund.Item("sku-a", 2)), false, "cmd-1", null));
+                List.of(new ReturnRefund.Item("sku-a", 1), new ReturnRefund.Item("sku-a", 2)), false, "cmd-1"));
 
         // then
         ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
@@ -423,7 +389,7 @@ class AllegroReturnsTest {
         AllegroReturns returns = new AllegroReturns(restApi, CLOCK);
 
         // when
-        returns.refundReturn(ORDER_ID, "r-1", new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), true, "cmd-1", null));
+        returns.refundReturn(ORDER_ID, "r-1", new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), true, "cmd-1"));
 
         // then
         ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
@@ -444,7 +410,7 @@ class AllegroReturnsTest {
 
         // when
         new AllegroReturns(restApi, CLOCK).refundReturn(ORDER_ID, "r-1",
-                new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), true, "cmd-1", null));
+                new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), true, "cmd-1"));
 
         // then
         ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
@@ -463,7 +429,7 @@ class AllegroReturnsTest {
 
         // when
         new AllegroReturns(restApi, CLOCK).refundReturn(ORDER_ID, "r-1",
-                new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), true, "cmd-1", null));
+                new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), true, "cmd-1"));
 
         // then
         ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
@@ -479,7 +445,7 @@ class AllegroReturnsTest {
 
         // when / then
         assertThrows(IllegalStateException.class, () -> returns.refundReturn(ORDER_ID, "r-1",
-                new ReturnRefund(List.of(new ReturnRefund.Item("UNKNOWN", 1)), false, "cmd-1", null)));
+                new ReturnRefund(List.of(new ReturnRefund.Item("UNKNOWN", 1)), false, "cmd-1")));
         verify(restApi, never()).postWithAuthRetry(eq("/payments/refunds"), any(), eq(AllegroRefundResponse.class));
     }
 
@@ -491,7 +457,7 @@ class AllegroReturnsTest {
 
         // when
         IllegalStateException exception = assertThrows(IllegalStateException.class, () -> returns.refundReturn(
-                ORDER_ID, "r-1", new ReturnRefund(List.of(new ReturnRefund.Item("K", 2)), false, "cmd-1", null)));
+                ORDER_ID, "r-1", new ReturnRefund(List.of(new ReturnRefund.Item("K", 2)), false, "cmd-1")));
 
         // then
         assertTrue(exception.getMessage().contains("li-1"));
@@ -506,7 +472,7 @@ class AllegroReturnsTest {
 
         // when
         returns.refundReturn(ORDER_ID, "ret-1",
-                new ReturnRefund(List.of(new ReturnRefund.Item("K7M2XQ9PZ4", 1)), false, "cmd-1", null));
+                new ReturnRefund(List.of(new ReturnRefund.Item("K7M2XQ9PZ4", 1)), false, "cmd-1"));
 
         // then
         ArgumentCaptor<Object> body = ArgumentCaptor.forClass(Object.class);
@@ -523,7 +489,7 @@ class AllegroReturnsTest {
 
         // when / then
         assertThrows(IllegalStateException.class, () -> new AllegroReturns(restApi, CLOCK).refundReturn(ORDER_ID, "r-1",
-                new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), false, "cmd-1", null)));
+                new ReturnRefund(List.of(new ReturnRefund.Item("111", 1)), false, "cmd-1")));
     }
 
     private void stubReturnDetails(String status, AllegroCustomerReturn.Rejection rejection) {

@@ -18,11 +18,7 @@ record AllegroCustomerReturn(
 ) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Item(String offerId, long quantity, String name, Price price, Reason reason) {
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    record Price(String amount, String currency) {
+    record Item(String offerId, long quantity, String name, Reason reason) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
