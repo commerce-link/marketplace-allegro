@@ -69,7 +69,7 @@ The provider exposes `MarketplaceProvider.returns()` backed by `AllegroReturns`:
   `items[].offerId` to the seller SKU through the checkout form (`offer.external.id`, else `offer.id` — the same
   key used at order import) and normalises the Allegro status to `DECLARED / IN_TRANSIT / DELIVERED / REFUNDED / REJECTED`.
 - `refundReturn(...)` posts `POST /payments/refunds` with `QUANTITY` line items and, when asked, the delivery cost.
-  `ReturnRefund.commandId` is Allegro's idempotency key — the app keeps it stable across redeliveries.
+  `ReturnRefund.idempotencyKey` becomes Allegro's `commandId` — the app keeps it stable across redeliveries.
 - `rejectReturn(...)` posts `POST /order/customer-returns/{id}/rejection` with code `REFUND_REJECTED`; a return that is
   already rejected or already refunded is left untouched.
 
