@@ -5,10 +5,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import pl.commercelink.marketplace.api.MarketplaceExportReport;
 import pl.commercelink.marketplace.api.MarketplaceOffer;
 import pl.commercelink.rest.client.HttpClientException;
 import pl.commercelink.rest.client.RestApiWithRetry;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -21,6 +23,14 @@ class AllegroOfferExportTest {
 
     @Mock
     private RestApiWithRetry restApi;
+
+    private final List<Rejection> rejections = new ArrayList<>();
+
+    private final MarketplaceExportReport report = (productId, reasonCode, message) ->
+            rejections.add(new Rejection(productId, reasonCode, message));
+
+    private record Rejection(String productId, String reasonCode, String message) {
+    }
 
     private MarketplaceOffer offer(String pimId, String ean, long price, long qty) {
         return new MarketplaceOffer(pimId, ean, "MC", "Acme", "Nazwa", "Kategoria", price, qty, 3);
@@ -97,7 +107,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -127,7 +137,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -153,7 +163,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -171,7 +181,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
@@ -186,7 +196,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
@@ -204,7 +214,7 @@ class AllegroOfferExportTest {
         // when
         export.export(List.of(
                 offer("PIM-1", "5901234567890", 149L, 10L),
-                offer("PIM-2", "5900000000000", 60L, 5L)), List.of());
+                offer("PIM-2", "5900000000000", 60L, 5L)), List.of(), report);
 
         // then
         verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
@@ -218,7 +228,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 0L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 0L)), List.of(), report);
 
         // then
         verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
@@ -232,7 +242,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", null, 149L, 5L)), List.of());
+        export.export(List.of(offer("PIM-1", null, 149L, 5L)), List.of(), report);
 
         // then
         verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
@@ -249,7 +259,7 @@ class AllegroOfferExportTest {
         // when
         export.export(List.of(
                 offer("PIM-1", "5901234567890", 149L, 10L),
-                offer("PIM-2", "5900000000000", 60L, 5L)), List.of());
+                offer("PIM-2", "5900000000000", 60L, 5L)), List.of(), report);
 
         // then
         verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
@@ -263,7 +273,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -281,7 +291,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         verify(restApi).patchWithAuthRetry(eq("/sale/product-offers/101"), any(), eq(Void.class));
@@ -294,7 +304,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -309,7 +319,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
@@ -323,7 +333,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
@@ -337,7 +347,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(), List.of(removal("PIM-1", 149L)));
+        export.export(List.of(), List.of(removal("PIM-1", 149L)), report);
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -355,7 +365,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(), List.of(removal("PIM-1", 149L), removal("PIM-2", 50L)));
+        export.export(List.of(), List.of(removal("PIM-1", 149L), removal("PIM-2", 50L)), report);
 
         // then
         verify(restApi, never()).patchWithAuthRetry(anyString(), any(), any());
@@ -372,7 +382,7 @@ class AllegroOfferExportTest {
         // when
         export.export(List.of(
                 offer("PIM-1", "5901234567890", 149L, 10L),
-                offer("PIM-2", "5900000000000", 60L, 5L)), List.of());
+                offer("PIM-2", "5900000000000", 60L, 5L)), List.of(), report);
 
         // then
         verify(restApi, never()).postWithAuthRetry(anyString(), any(), any());
@@ -389,7 +399,7 @@ class AllegroOfferExportTest {
 
         // when / then
         assertThrows(HttpClientException.class, () ->
-                export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of()));
+                export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report));
     }
 
     @Test
@@ -401,7 +411,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         verify(restApi).patchWithAuthRetry(eq("/sale/product-offers/101"), any(), eq(Void.class));
@@ -423,7 +433,7 @@ class AllegroOfferExportTest {
         // when
         export.export(List.of(
                 offer("PIM-1", "5901234567890", 149L, 10L),
-                offer("PIM-2", "5900000000000", 60L, 5L)), List.of());
+                offer("PIM-2", "5900000000000", 60L, 5L)), List.of(), report);
 
         // then
         verify(restApi, times(2)).postWithAuthRetry(eq("/sale/product-offers"), any(), eq(Void.class));
@@ -442,7 +452,7 @@ class AllegroOfferExportTest {
 
         // when / then
         assertThrows(HttpClientException.class, () ->
-                export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of()));
+                export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report));
     }
 
     @Test
@@ -455,7 +465,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         verify(restApi).postWithAuthRetry(eq("/sale/product-offers"), any(), eq(Void.class));
@@ -473,7 +483,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-2", "5900000000000", 50L, 5L)), List.of());
+        export.export(List.of(offer("PIM-2", "5900000000000", 50L, 5L)), List.of(), report);
 
         // then
         ArgumentCaptor<Map<String, String>> paramsCaptor = ArgumentCaptor.forClass(Map.class);
@@ -495,7 +505,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -516,7 +526,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -537,7 +547,7 @@ class AllegroOfferExportTest {
         // when
         export.export(List.of(
                 offer("PIM-1", "5901234567890", 149L, 10L),
-                offer("PIM-2", "5901234567891", 99L, 5L)), List.of());
+                offer("PIM-2", "5901234567891", 99L, 5L)), List.of(), report);
 
         // then
         verify(restApi, times(1)).fetchWithAuthRetry(
@@ -555,7 +565,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -574,7 +584,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -594,7 +604,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -614,7 +624,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
@@ -635,7 +645,7 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when
-        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
 
         // then
         verify(restApi, never()).postWithAuthRetry(eq("/sale/product-offers"), any(), eq(Void.class));
@@ -648,10 +658,155 @@ class AllegroOfferExportTest {
         AllegroOfferExport export = new AllegroOfferExport(restApi);
 
         // when — cena się zmienia, tylko PATCH
-        export.export(List.of(offer("PIM-1", "5901234567890", 99L, 10L)), List.of());
+        export.export(List.of(offer("PIM-1", "5901234567890", 99L, 10L)), List.of(), report);
 
         // then
         verify(restApi, never()).fetchWithAuthRetry(eq("/sale/responsible-persons"), anyMap(), any());
         verify(restApi, never()).fetchWithAuthRetry(eq("/sale/responsible-producers"), anyMap(), any());
+    }
+
+    @Test
+    void reportsCreateWithoutQuantity() {
+        // given
+        stubOffersPage();
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 0L)), List.of(), report);
+
+        // then
+        assertEquals(1, rejections.size());
+        assertEquals("PIM-1", rejections.get(0).productId());
+        assertEquals("NEW_OFFER_WITHOUT_QUANTITY", rejections.get(0).reasonCode());
+    }
+
+    @Test
+    void reportsCreateWithoutEan() {
+        // given
+        stubOffersPage();
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", null, 149L, 5L)), List.of(), report);
+
+        // then
+        assertEquals(1, rejections.size());
+        assertEquals("PIM-1", rejections.get(0).productId());
+        assertEquals("MISSING_EAN", rejections.get(0).reasonCode());
+    }
+
+    @Test
+    void reportsEveryCreateSkippedForMissingShippingRates() {
+        // given
+        stubOffersPage();
+        when(restApi.fetchWithAuthRetry(eq("/sale/shipping-rates"), anyMap(), eq(AllegroShippingRatesResponse.class)))
+                .thenReturn(new AllegroShippingRatesResponse(List.of()));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(
+                offer("PIM-1", "5901234567890", 149L, 10L),
+                offer("PIM-2", "5900000000000", 60L, 5L)), List.of(), report);
+
+        // then
+        assertEquals(List.of("PIM-1", "PIM-2"), rejections.stream().map(Rejection::productId).toList());
+        assertEquals(List.of("NO_SHIPPING_RATES", "NO_SHIPPING_RATES"),
+                rejections.stream().map(Rejection::reasonCode).toList());
+    }
+
+    @Test
+    void reportsEanMissingFromCatalog() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        when(restApi.fetchWithAuthRetry(eq("/sale/products"), anyMap(), eq(AllegroProductsResponse.class)))
+                .thenReturn(new AllegroProductsResponse(List.of()));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
+
+        // then
+        assertEquals(1, rejections.size());
+        assertEquals("PIM-1", rejections.get(0).productId());
+        assertEquals("EAN_NOT_IN_CATALOG", rejections.get(0).reasonCode());
+        assertTrue(rejections.get(0).message().contains("5901234567890"));
+    }
+
+    @Test
+    void reportsCatalogProductWithoutImages() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        stubCatalogProduct("prod-uuid", "260001", List.of("224017", "237206"), List.of(), List.of());
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
+
+        // then
+        assertEquals(1, rejections.size());
+        assertEquals("PIM-1", rejections.get(0).productId());
+        assertEquals("CATALOG_PRODUCT_WITHOUT_IMAGES", rejections.get(0).reasonCode());
+        assertTrue(rejections.get(0).message().contains("prod-uuid"));
+    }
+
+    @Test
+    void reportsMissingResponsibleProducer() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        stubCatalogProduct("prod-uuid", "260001", List.of("224017", "237206"),
+                List.of("https://img/1.jpg"), List.of());
+        stubProducers();
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
+
+        // then
+        assertEquals(1, rejections.size());
+        assertEquals("PIM-1", rejections.get(0).productId());
+        assertEquals("NO_RESPONSIBLE_PRODUCER", rejections.get(0).reasonCode());
+        assertTrue(rejections.get(0).message().contains("prod-uuid"));
+        assertTrue(rejections.get(0).message().contains("Acme"));
+    }
+
+    @Test
+    void reportsClientErrorReturnedByAllegro() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        stubCatalogProduct("prod-uuid", "260001", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of("rp-1"));
+        stubPersons();
+        when(restApi.postWithAuthRetry(eq("/sale/product-offers"), any(), eq(Void.class)))
+                .thenThrow(new HttpClientException(422, "product not found"));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when
+        export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report);
+
+        // then
+        assertEquals(1, rejections.size());
+        assertEquals("PIM-1", rejections.get(0).productId());
+        assertEquals("HTTP_422", rejections.get(0).reasonCode());
+        assertEquals("product not found", rejections.get(0).message());
+    }
+
+    @Test
+    void reportsNothingWhenServerErrorPropagates() {
+        // given
+        stubOffersPage();
+        stubShippingRates();
+        stubCatalogProduct("prod-uuid", "260001", List.of("224017", "237206"), List.of("https://img/1.jpg"), List.of("rp-1"));
+        stubPersons();
+        when(restApi.postWithAuthRetry(eq("/sale/product-offers"), any(), eq(Void.class)))
+                .thenThrow(new HttpClientException(500, "internal error"));
+        AllegroOfferExport export = new AllegroOfferExport(restApi);
+
+        // when / then
+        assertThrows(HttpClientException.class, () ->
+                export.export(List.of(offer("PIM-1", "5901234567890", 149L, 10L)), List.of(), report));
+        assertTrue(rejections.isEmpty());
     }
 }
