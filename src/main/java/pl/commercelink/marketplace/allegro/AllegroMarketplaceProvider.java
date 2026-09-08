@@ -1,6 +1,7 @@
 package pl.commercelink.marketplace.allegro;
 
 import pl.commercelink.marketplace.api.InvoiceUpdate;
+import pl.commercelink.marketplace.api.MarketplaceExportReport;
 import pl.commercelink.marketplace.api.MarketplaceOffer;
 import pl.commercelink.marketplace.api.MarketplaceOrder;
 import pl.commercelink.marketplace.api.MarketplaceProvider;
@@ -28,7 +29,14 @@ class AllegroMarketplaceProvider implements MarketplaceProvider {
 
     @Override
     public void exportOffers(List<MarketplaceOffer> toPublish, List<MarketplaceOffer> toRemove) {
-        offerExport.export(toPublish, toRemove);
+        offerExport.export(toPublish, toRemove, (productId, reasonCode, message) -> {
+        });
+    }
+
+    @Override
+    public void exportOffers(List<MarketplaceOffer> toPublish, List<MarketplaceOffer> toRemove,
+                             MarketplaceExportReport report) {
+        offerExport.export(toPublish, toRemove, report);
     }
 
     @Override
