@@ -5,21 +5,25 @@ import pl.commercelink.marketplace.api.MarketplaceExportReport;
 import pl.commercelink.marketplace.api.MarketplaceOffer;
 import pl.commercelink.marketplace.api.MarketplaceOrder;
 import pl.commercelink.marketplace.api.MarketplaceProvider;
+import pl.commercelink.marketplace.api.MarketplaceReturns;
 import pl.commercelink.marketplace.api.ShipmentUpdate;
 import pl.commercelink.rest.client.RestApiWithRetry;
 
 import java.util.List;
+import java.util.Optional;
 
 class AllegroMarketplaceProvider implements MarketplaceProvider {
 
     private final AllegroOrdersImport ordersImport;
     private final AllegroOrderLifecycleEventHandler lifecycleHandler;
     private final AllegroOfferExport offerExport;
+    private final AllegroReturns returns;
 
     AllegroMarketplaceProvider(RestApiWithRetry restApi) {
         this.ordersImport = new AllegroOrdersImport(restApi);
         this.lifecycleHandler = new AllegroOrderLifecycleEventHandler(restApi);
         this.offerExport = new AllegroOfferExport(restApi);
+        this.returns = new AllegroReturns(restApi);
     }
 
     @Override
@@ -56,5 +60,10 @@ class AllegroMarketplaceProvider implements MarketplaceProvider {
 
     @Override
     public void updateInvoice(String externalOrderId, InvoiceUpdate update) {
+    }
+
+    @Override
+    public Optional<MarketplaceReturns> returns() {
+        return Optional.of(returns);
     }
 }

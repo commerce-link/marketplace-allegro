@@ -95,7 +95,7 @@ class AllegroOrdersImport {
                 form.payment().id());
     }
 
-    private String resolveManufacturerCode(AllegroCheckoutForm.Offer offer) {
+    static String resolveManufacturerCode(AllegroCheckoutForm.Offer offer) {
         if (offer.external() != null && offer.external().id() != null) {
             return offer.external().id();
         }
