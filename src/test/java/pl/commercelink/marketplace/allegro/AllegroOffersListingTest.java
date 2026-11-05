@@ -53,6 +53,20 @@ class AllegroOffersListingTest {
                 .thenReturn(objectMapper.readValue(json, AllegroListedOffersResponse.class));
     }
 
+    private void stubListWithoutTotalCount(String... offers) throws Exception {
+        String json = "{\"offers\":[" + String.join(",", offers) + "],\"count\":" + offers.length + "}";
+        when(restApi.fetchWithAuthRetry(eq("/sale/offers"), anyMap(), eq(AllegroListedOffersResponse.class)))
+                .thenReturn(objectMapper.readValue(json, AllegroListedOffersResponse.class));
+    }
+
+    private String[] endedOffers(long firstId, int size) {
+        String[] ended = new String[size];
+        for (int i = 0; i < size; i++) {
+            ended[i] = endedOffer(String.valueOf(firstId + i));
+        }
+        return ended;
+    }
+
     private void stubList(String... offers) throws Exception {
         stubList(offers.length, offers.length, offers);
     }
@@ -212,6 +226,32 @@ class AllegroOffersListingTest {
         // then
         assertNull(page.nextCursor());
         assertEquals(120, page.total());
+    }
+
+    @Test
+    void continuesWithoutTotalCountWhenThePageIsFull() throws Exception {
+        // given
+        stubListWithoutTotalCount(endedOffers(7700000300L, 50));
+
+        // when
+        MarketplaceOffersPage page = new AllegroOffersListing(restApi).page(null);
+
+        // then
+        assertEquals("50", page.nextCursor());
+        assertNull(page.total());
+    }
+
+    @Test
+    void endsWithoutTotalCountOnAShortPage() throws Exception {
+        // given
+        stubListWithoutTotalCount(endedOffers(7700000400L, 20));
+
+        // when
+        MarketplaceOffersPage page = new AllegroOffersListing(restApi).page(null);
+
+        // then
+        assertNull(page.nextCursor());
+        assertNull(page.total());
     }
 
     @Test

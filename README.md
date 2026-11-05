@@ -3,7 +3,8 @@
 Allegro marketplace integration for the CommerceLink platform. Implements `MarketplaceProvider`
 (`marketplace-api:0.9.1`), discovered via SPI. Scope: import of paid orders only + order
 lifecycle (accept/ship/cancel) + offer export (full create/update/end cycle against
-`/sale/product-offers`). Invoices — separate ticket (`updateInvoice` is a no-op).
+`/sale/product-offers`) + offer listing for linking offers published by another system
+(`offers()`). Invoices — separate ticket (`updateInvoice` is a no-op).
 
 ## How the "paid only" import works
 
