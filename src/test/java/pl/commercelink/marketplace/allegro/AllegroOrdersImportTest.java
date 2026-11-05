@@ -6,6 +6,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pl.commercelink.marketplace.api.MarketplaceCustomer;
 import pl.commercelink.marketplace.api.MarketplaceOrder;
+import pl.commercelink.marketplace.api.MarketplaceProduct;
 import pl.commercelink.rest.client.RestApiWithRetry;
 
 import java.math.BigDecimal;
@@ -700,5 +701,57 @@ class AllegroOrdersImportTest {
 
         // when / then
         assertEquals("offer-9", ordersImport.fetchOrders().get(0).products().get(0).manufacturerCode());
+    }
+
+    private MarketplaceProduct productOfOffer(AllegroCheckoutForm.Offer offer) {
+        AllegroCheckoutForm base = paidForm("x");
+        AllegroCheckoutForm form = new AllegroCheckoutForm("o-7", "READY_FOR_PROCESSING",
+                base.buyer(), base.payment(), base.fulfillment(), base.delivery(), base.invoice(),
+                List.of(new AllegroCheckoutForm.LineItem(null, offer, 1,
+                        new AllegroCheckoutForm.Price("99.00", "PLN"), null)));
+        when(restApi.fetchWithAuthRetry(anyString(), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(form), 1, 1));
+        return new AllegroOrdersImport(restApi).fetchOrders().get(0).products().get(0);
+    }
+
+    @Test
+    void reportsTheSignatureAsSellerOfferKey() {
+        // given
+        AllegroCheckoutForm.Offer offer = new AllegroCheckoutForm.Offer("7700000001", "Mysz Y",
+                new AllegroCheckoutForm.External("2000000000015"));
+
+        // when
+        MarketplaceProduct product = productOfOffer(offer);
+
+        // then
+        assertEquals("2000000000015", product.sellerOfferKey());
+        assertEquals("2000000000015", product.manufacturerCode());
+    }
+
+    @Test
+    void reportsTheOfferIdAsSellerOfferKeyWithoutASignature() {
+        // given
+        AllegroCheckoutForm.Offer offer = new AllegroCheckoutForm.Offer("7700000001", "Mysz Y", null);
+
+        // when
+        MarketplaceProduct product = productOfOffer(offer);
+
+        // then
+        assertEquals("7700000001", product.sellerOfferKey());
+        assertEquals("7700000001", product.manufacturerCode());
+    }
+
+    @Test
+    void keepsTheBlankSignatureAsManufacturerCodeButKeysByOfferId() {
+        // given
+        AllegroCheckoutForm.Offer offer = new AllegroCheckoutForm.Offer("7700000001", "Mysz Y",
+                new AllegroCheckoutForm.External("  "));
+
+        // when
+        MarketplaceProduct product = productOfOffer(offer);
+
+        // then
+        assertEquals("7700000001", product.sellerOfferKey());
+        assertEquals("  ", product.manufacturerCode());
     }
 }
