@@ -7,6 +7,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import pl.commercelink.marketplace.api.MarketplaceCustomer;
 import pl.commercelink.marketplace.api.MarketplaceOrder;
 import pl.commercelink.marketplace.api.MarketplaceProduct;
+import pl.commercelink.rest.client.HttpClientException;
 import pl.commercelink.rest.client.RestApiWithRetry;
 
 import java.math.BigDecimal;
@@ -15,6 +16,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -267,7 +269,7 @@ class AllegroOrdersImportTest {
         assertEquals("SKU-1", order.products().get(0).manufacturerCode());
         assertEquals(new BigDecimal("2500.00"), order.products().get(0).priceGross());
         assertEquals(2, order.products().get(0).quantity());
-        assertEquals(BigDecimal.ZERO, order.products().get(0).commission());
+        assertEquals(new BigDecimal("0.00"), order.products().get(0).commission());
         assertEquals(new BigDecimal("15.99"), order.shipping().cost());
         assertEquals("OnlinePayment", order.paymentType());
         assertEquals("pay-1", order.paymentTransactionId());
@@ -767,5 +769,76 @@ class AllegroOrdersImportTest {
         // then
         assertEquals("BL-1", product.sellerOfferKey());
         assertEquals(" BL-1 ", product.manufacturerCode());
+    }
+
+    private static AllegroBillingEntriesResponse billing(String formId, String amount) {
+        return new AllegroBillingEntriesResponse(List.of(new AllegroBillingEntriesResponse.Entry("e-" + formId,
+                new AllegroBillingEntriesResponse.Type("SUC", "Sales commission"),
+                new AllegroBillingEntriesResponse.Amount(amount, "PLN"), "DEBIT",
+                new AllegroBillingEntriesResponse.Tax("23.00"), new AllegroBillingEntriesResponse.Offer("offer-1"),
+                new AllegroBillingEntriesResponse.Order(formId))));
+    }
+
+    private void billingFor(String formId, AllegroBillingEntriesResponse response) {
+        when(restApi.fetchWithAuthRetry(eq("/billing/billing-entries"), argThat(p -> p != null && formId.equals(p.get("order.id"))),
+                eq(AllegroBillingEntriesResponse.class)))
+                .thenReturn(response);
+    }
+
+    @Test
+    void fetchOrdersFillsCommissionFromBilling() {
+        // given
+        when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms"), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(paidForm("o-1")), 1, 1));
+        billingFor("o-1", billing("o-1", "-12.34"));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals(new BigDecimal("12.34"), orders.get(0).products().get(0).commission());
+    }
+
+    @Test
+    void billingFailureForOneOrderKeepsAllOrders() {
+        // given
+        when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms"), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(paidForm("o-1"), paidForm("o-2")), 2, 2));
+        when(restApi.fetchWithAuthRetry(eq("/billing/billing-entries"), argThat(p -> p != null && "o-1".equals(p.get("order.id"))),
+                eq(AllegroBillingEntriesResponse.class)))
+                .thenThrow(new HttpClientException(403, "{}"));
+        billingFor("o-2", billing("o-2", "-1.00"));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then
+        assertEquals(2, orders.size());
+        assertEquals(new BigDecimal("0.00"), orders.get(0).products().get(0).commission());
+        assertEquals(new BigDecimal("1.00"), orders.get(1).products().get(0).commission());
+    }
+
+    @Test
+    void billingNotQueriedForSkippedForms() {
+        // given
+        AllegroCheckoutForm unpaid = new AllegroCheckoutForm("o-2", "READY_FOR_PROCESSING",
+                paidForm("x").buyer(),
+                new AllegroCheckoutForm.Payment("pay-2", "ONLINE", null),
+                new AllegroCheckoutForm.Fulfillment("NEW"),
+                paidForm("x").delivery(), paidForm("x").invoice(), paidForm("x").lineItems());
+        when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms"), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(paidForm("o-1"), unpaid), 2, 2));
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi);
+
+        // when
+        ordersImport.fetchOrders();
+
+        // then
+        verify(restApi).fetchWithAuthRetry(eq("/billing/billing-entries"),
+                argThat(p -> p != null && "o-1".equals(p.get("order.id"))), eq(AllegroBillingEntriesResponse.class));
+        verify(restApi, never()).fetchWithAuthRetry(eq("/billing/billing-entries"),
+                argThat(p -> p != null && "o-2".equals(p.get("order.id"))), eq(AllegroBillingEntriesResponse.class));
     }
 }

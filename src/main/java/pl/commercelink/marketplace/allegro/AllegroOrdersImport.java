@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 class AllegroOrdersImport {
 
@@ -21,9 +22,11 @@ class AllegroOrdersImport {
     private static final String PAYMENT_CASH_ON_DELIVERY = "CASH_ON_DELIVERY";
 
     private final RestApiWithRetry restApi;
+    private final AllegroOrderCommission commission;
 
     AllegroOrdersImport(RestApiWithRetry restApi) {
         this.restApi = restApi;
+        this.commission = new AllegroOrderCommission(restApi);
     }
 
     List<MarketplaceOrder> fetchOrders() {
@@ -73,17 +76,9 @@ class AllegroOrdersImport {
     }
 
     private MarketplaceOrder toMarketplaceOrder(AllegroCheckoutForm form) {
-        List<MarketplaceProduct> products = form.lineItems().stream()
-                .map(item -> new MarketplaceProduct(
-                        item.offer().name(),
-                        resolveManufacturerCode(item.offer()),
-                        new BigDecimal(item.price().amount()),
-                        item.quantity(),
-                        BigDecimal.ZERO,
-                        // Not resolveManufacturerCode: returns translate through that rule, so its value stays raw (untrimmed, blank
-                        // when the signature is blank) while the key is trimmed and falls back to the offer id.
-                        AllegroOfferKeys.of(item.offer().id(),
-                                item.offer().external() == null ? null : item.offer().external().id())))
+        List<BigDecimal> commissions = commission.forLines(form.id(), form.lineItems());
+        List<MarketplaceProduct> products = IntStream.range(0, form.lineItems().size())
+                .mapToObj(i -> toMarketplaceProduct(form.lineItems().get(i), commissions.get(i)))
                 .toList();
 
         return new MarketplaceOrder(
@@ -97,6 +92,19 @@ class AllegroOrdersImport {
                         form.delivery().toEstimatedShippingAt()),
                 resolvePaymentType(form.payment().type()),
                 form.payment().id());
+    }
+
+    private static MarketplaceProduct toMarketplaceProduct(AllegroCheckoutForm.LineItem item, BigDecimal commission) {
+        return new MarketplaceProduct(
+                item.offer().name(),
+                resolveManufacturerCode(item.offer()),
+                new BigDecimal(item.price().amount()),
+                item.quantity(),
+                commission,
+                // Not resolveManufacturerCode: returns translate through that rule, so its value stays raw (untrimmed, blank
+                // when the signature is blank) while the key is trimmed and falls back to the offer id.
+                AllegroOfferKeys.of(item.offer().id(),
+                        item.offer().external() == null ? null : item.offer().external().id()));
     }
 
     static String resolveManufacturerCode(AllegroCheckoutForm.Offer offer) {
