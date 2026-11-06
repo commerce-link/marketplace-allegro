@@ -797,7 +797,8 @@ class AllegroOrdersImportTest {
         List<MarketplaceOrder> orders = ordersImport.fetchOrders();
 
         // then
-        assertEquals(new BigDecimal("12.34"), orders.get(0).products().get(0).commission());
+        // 12.34 gross with 23% VAT
+        assertEquals(new BigDecimal("10.03"), orders.get(0).products().get(0).commission());
     }
 
     @Test
@@ -817,7 +818,7 @@ class AllegroOrdersImportTest {
         // then
         assertEquals(2, orders.size());
         assertEquals(new BigDecimal("0.00"), orders.get(0).products().get(0).commission());
-        assertEquals(new BigDecimal("1.00"), orders.get(1).products().get(0).commission());
+        assertEquals(new BigDecimal("0.81"), orders.get(1).products().get(0).commission());
     }
 
     @Test

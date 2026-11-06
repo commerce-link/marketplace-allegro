@@ -99,7 +99,8 @@ into the order payment's fee). The checkout form has no commission, so `AllegroO
 
 - only commission types count (`SUC`, `FSF`, `ASC`, `BRG`, `BC1`–`BC5`, `USF`, `KAC`); delivery, listing, promotion
   fees, rebates and account corrections do not;
-- amounts are gross, as billing books them; a charge is negative and a refund of the same type positive (still marked
+- the commission is net of VAT (billing books gross amounts with the VAT rate beside them; the app counts a payment's
+  fee as a net cost and adds VAT itself); a charge is negative and a refund of the same type positive (still marked
   `DEBIT`), so the sign decides, never `asset`;
 - an offer's commission goes to the first line of that offer, commission tied to no offer to the first line;
 - the commission is not refreshed later (rebates, refunds on returns stay out);

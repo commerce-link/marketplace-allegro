@@ -16,8 +16,9 @@ import java.util.Set;
  * ({@code checkout-forms}) carries no commission; billing does, as entries linked to the order by {@code order.id}.
  * <p>
  * Only commission counts: delivery, listing, promotion fees, rebates and account corrections are left out, as the
- * order's fee is the marketplace's commission on the sale (the same thing Empik and Morele report). Amounts are gross,
- * as billing books them. The commission is read once, when the order is imported; anything going wrong yields zero so
+ * order's fee is the marketplace's commission on the sale (the same thing Empik and Morele report). It is net of VAT,
+ * as the app counts a payment's fee as a net cost; billing books gross amounts with the VAT rate beside them. The
+ * commission is read once, when the order is imported; anything going wrong yields zero so
  * the order is still imported.
  */
 class AllegroOrderCommission {
@@ -56,7 +57,7 @@ class AllegroOrderCommission {
             entries = commissionEntries(checkoutFormId);
             for (AllegroBillingEntriesResponse.Entry entry : entries) {
                 // a charge is negative, so its commission is the negated amount; a refund (positive) reduces it
-                BigDecimal commission = new BigDecimal(entry.value().amount()).negate();
+                BigDecimal commission = net(entry).negate();
                 int line = lineOf(entry, lineItems);
                 perLine.set(line, perLine.get(line).add(commission));
             }
@@ -103,6 +104,20 @@ class AllegroOrderCommission {
             offset += page.size();
         } while (page.size() == PAGE_SIZE);
         return commission;
+    }
+
+    /**
+     * The entry's amount without VAT, unrounded. Billing books gross amounts with the VAT rate beside them, while the
+     * app counts a payment's fee as a net cost (it adds VAT itself when it shows the gross cost). An entry with no
+     * rate (VAT out of scope) counts as it is.
+     */
+    private static BigDecimal net(AllegroBillingEntriesResponse.Entry entry) {
+        BigDecimal gross = new BigDecimal(entry.value().amount());
+        if (entry.tax() == null || entry.tax().percentage() == null) {
+            return gross;
+        }
+        BigDecimal divisor = BigDecimal.ONE.add(new BigDecimal(entry.tax().percentage()).movePointLeft(2));
+        return gross.divide(divisor, 10, RoundingMode.HALF_UP);
     }
 
     private static int lineOf(AllegroBillingEntriesResponse.Entry entry, List<AllegroCheckoutForm.LineItem> lineItems) {

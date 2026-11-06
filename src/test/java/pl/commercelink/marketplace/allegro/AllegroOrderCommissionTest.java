@@ -34,10 +34,15 @@ class AllegroOrderCommissionTest {
                 1, new AllegroCheckoutForm.Price("100.00", "PLN"), null);
     }
 
+    /** An entry without a VAT rate, so its amount counts as it is (the VAT cases have their own tests). */
     private static AllegroBillingEntriesResponse.Entry entry(String type, String amount, String offerId) {
+        return entry(type, amount, offerId, null);
+    }
+
+    private static AllegroBillingEntriesResponse.Entry entry(String type, String amount, String offerId, String vatPercentage) {
         return new AllegroBillingEntriesResponse.Entry("e-" + type + amount, new AllegroBillingEntriesResponse.Type(type, type),
                 new AllegroBillingEntriesResponse.Amount(amount, "PLN"), "DEBIT",
-                new AllegroBillingEntriesResponse.Tax("23.00"),
+                vatPercentage == null ? null : new AllegroBillingEntriesResponse.Tax(vatPercentage),
                 offerId == null ? null : new AllegroBillingEntriesResponse.Offer(offerId),
                 new AllegroBillingEntriesResponse.Order(FORM_ID));
     }
@@ -268,5 +273,42 @@ class AllegroOrderCommissionTest {
 
         // then
         assertEquals(amounts("2.00"), commission);
+    }
+
+    @Test
+    void commissionIsNetOfTheEntryVat() {
+        // given: billing books gross; the app counts the fee as a net cost
+        billingReturns(entry("SUC", "-12.55", "offer-1", "23.00"));
+
+        // when
+        List<BigDecimal> commission = forLines(line("offer-1"));
+
+        // then
+        assertEquals(amounts("10.20"), commission);
+    }
+
+    @Test
+    void netIsRoundedOnceOverTheWholeLine() {
+        // given: three entries of 0.02 gross are 0.01626 net each, 0.0488 together; rounding each first gives 0.06
+        billingReturns(entry("SUC", "-0.02", "offer-1", "23.00"), entry("SUC", "-0.02", "offer-1", "23.00"),
+                entry("SUC", "-0.02", "offer-1", "23.00"));
+
+        // when
+        List<BigDecimal> commission = forLines(line("offer-1"));
+
+        // then: 0.05, not 3 x 0.02
+        assertEquals(amounts("0.05"), commission);
+    }
+
+    @Test
+    void zeroVatRateKeepsTheAmount() {
+        // given
+        billingReturns(entry("SUC", "-5.00", "offer-1", "0.00"));
+
+        // when
+        List<BigDecimal> commission = forLines(line("offer-1"));
+
+        // then
+        assertEquals(amounts("5.00"), commission);
     }
 }
