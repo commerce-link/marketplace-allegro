@@ -28,6 +28,11 @@ public class AllegroMarketplaceProviderDescriptor implements MarketplaceProvider
     }
 
     @Override
+    public boolean supportsOfferListing() {
+        return true;
+    }
+
+    @Override
     public String displayName() {
         return "Allegro";
     }

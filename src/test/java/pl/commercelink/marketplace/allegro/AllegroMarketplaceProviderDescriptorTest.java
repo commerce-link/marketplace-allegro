@@ -146,4 +146,27 @@ class AllegroMarketplaceProviderDescriptorTest {
         assertTrue(provider.returns().isPresent());
         assertInstanceOf(AllegroReturns.class, provider.returns().get());
     }
+
+    @Test
+    void descriptorSupportsOfferListing() {
+        // given
+        AllegroMarketplaceProviderDescriptor descriptor = new AllegroMarketplaceProviderDescriptor();
+
+        // when / then
+        assertTrue(descriptor.supportsOfferListing());
+    }
+
+    @Test
+    void providerExposesOfferListing() {
+        // given
+        AllegroMarketplaceProviderDescriptor descriptor = new AllegroMarketplaceProviderDescriptor();
+        RestApiWithRetry restApi = mock(RestApiWithRetry.class);
+
+        // when
+        MarketplaceProvider provider = descriptor.create(Map.of(), Map.of("restApi", restApi));
+
+        // then
+        assertTrue(provider.offers().isPresent());
+        assertInstanceOf(AllegroOffersListing.class, provider.offers().get());
+    }
 }

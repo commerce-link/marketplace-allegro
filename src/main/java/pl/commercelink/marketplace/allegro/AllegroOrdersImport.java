@@ -79,7 +79,11 @@ class AllegroOrdersImport {
                         resolveManufacturerCode(item.offer()),
                         new BigDecimal(item.price().amount()),
                         item.quantity(),
-                        BigDecimal.ZERO))
+                        BigDecimal.ZERO,
+                        // Not resolveManufacturerCode: returns translate through that rule, so its value stays raw (untrimmed, blank
+                        // when the signature is blank) while the key is trimmed and falls back to the offer id.
+                        AllegroOfferKeys.of(item.offer().id(),
+                                item.offer().external() == null ? null : item.offer().external().id())))
                 .toList();
 
         return new MarketplaceOrder(

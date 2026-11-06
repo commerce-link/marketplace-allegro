@@ -3,6 +3,7 @@ package pl.commercelink.marketplace.allegro;
 import pl.commercelink.marketplace.api.InvoiceUpdate;
 import pl.commercelink.marketplace.api.MarketplaceExportReport;
 import pl.commercelink.marketplace.api.MarketplaceOffer;
+import pl.commercelink.marketplace.api.MarketplaceOffers;
 import pl.commercelink.marketplace.api.MarketplaceOrder;
 import pl.commercelink.marketplace.api.MarketplaceProvider;
 import pl.commercelink.marketplace.api.MarketplaceReturns;
@@ -18,12 +19,14 @@ class AllegroMarketplaceProvider implements MarketplaceProvider {
     private final AllegroOrderLifecycleEventHandler lifecycleHandler;
     private final AllegroOfferExport offerExport;
     private final AllegroReturns returns;
+    private final AllegroOffersListing offersListing;
 
     AllegroMarketplaceProvider(RestApiWithRetry restApi) {
         this.ordersImport = new AllegroOrdersImport(restApi);
         this.lifecycleHandler = new AllegroOrderLifecycleEventHandler(restApi);
         this.offerExport = new AllegroOfferExport(restApi);
         this.returns = new AllegroReturns(restApi);
+        this.offersListing = new AllegroOffersListing(restApi);
     }
 
     @Override
@@ -65,5 +68,10 @@ class AllegroMarketplaceProvider implements MarketplaceProvider {
     @Override
     public Optional<MarketplaceReturns> returns() {
         return Optional.of(returns);
+    }
+
+    @Override
+    public Optional<MarketplaceOffers> offers() {
+        return Optional.of(offersListing);
     }
 }
