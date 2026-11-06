@@ -22,7 +22,10 @@ class AllegroOffersListing implements MarketplaceOffers {
     // rest-client does not expose response headers; Allegro documents 429 without Retry-After and a one-minute block
     static final Duration RATE_LIMIT_RETRY_AFTER = Duration.ofSeconds(60);
 
-    private static final String ENDED = "ENDED";
+    // Only offers that can bring an order: ended offers and never-published drafts (INACTIVE) would only add detail
+    // requests and links that keep our own product out of the export. Filtering here also keeps totalCount equal to
+    // the offers the walk actually checks, so the app's progress can reach its total.
+    static final String OFFERS = "/sale/offers?publication.status=ACTIVE&publication.status=ACTIVATING";
     private static final String ACTIVE = "ACTIVE";
 
     private final RestApiWithRetry restApi;
@@ -39,15 +42,11 @@ class AllegroOffersListing implements MarketplaceOffers {
         params.put("limit", String.valueOf(PAGE_SIZE));
         params.put("offset", String.valueOf(offset));
         AllegroListedOffersResponse response = call(() ->
-                restApi.fetchWithAuthRetry("/sale/offers", params, AllegroListedOffersResponse.class));
+                restApi.fetchWithAuthRetry(OFFERS, params, AllegroListedOffersResponse.class));
 
         List<AllegroListedOffersResponse.Offer> offers = response.offers() == null ? List.of() : response.offers();
         List<MarketplaceListedOffer> listed = new ArrayList<>();
         for (AllegroListedOffersResponse.Offer offer : offers) {
-            // Ended offers cannot be linked to anything sellable, so their details are not worth a request
-            if (offer.publication() != null && ENDED.equals(offer.publication().status())) {
-                continue;
-            }
             AllegroProductOfferResponse details = details(offer.id());
             if (details != null) {
                 listed.add(toListedOffer(offer, details));
@@ -56,8 +55,9 @@ class AllegroOffersListing implements MarketplaceOffers {
 
         Integer totalCount = response.totalCount();
         int count = response.count() != null ? response.count() : offers.size();
-        // The walk advances on the listed page, not on the kept offers: a page of ended offers must not stop it,
-        // while an empty listed page ends it even if totalCount promises more, so a shrinking catalogue cannot loop
+        // The walk advances on the listed page, not on the kept offers: a page whose offers were all deleted before
+        // their details must not stop it, while an empty listed page ends it even if totalCount promises more, so a
+        // shrinking catalogue cannot loop
         boolean last = offers.isEmpty()
                 || (totalCount != null ? offset + count >= totalCount : count < PAGE_SIZE);
         return new MarketplaceOffersPage(listed, last ? null : String.valueOf(offset + PAGE_SIZE), totalCount);

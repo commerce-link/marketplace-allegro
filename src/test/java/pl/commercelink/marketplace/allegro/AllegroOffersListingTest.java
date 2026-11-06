@@ -43,28 +43,30 @@ class AllegroOffersListingTest {
         return listedOffer(id, null, "Oferta " + id, 1, "10.00", "ACTIVE");
     }
 
-    private String endedOffer(String id) {
-        return listedOffer(id, null, "Oferta " + id, 0, "10.00", "ENDED");
-    }
-
     private void stubList(Integer count, int totalCount, String... offers) throws Exception {
         String json = "{\"offers\":[" + String.join(",", offers) + "],\"count\":" + count + ",\"totalCount\":" + totalCount + "}";
-        when(restApi.fetchWithAuthRetry(eq("/sale/offers"), anyMap(), eq(AllegroListedOffersResponse.class)))
+        when(restApi.fetchWithAuthRetry(eq(AllegroOffersListing.OFFERS), anyMap(), eq(AllegroListedOffersResponse.class)))
                 .thenReturn(objectMapper.readValue(json, AllegroListedOffersResponse.class));
     }
 
     private void stubListWithoutTotalCount(String... offers) throws Exception {
         String json = "{\"offers\":[" + String.join(",", offers) + "],\"count\":" + offers.length + "}";
-        when(restApi.fetchWithAuthRetry(eq("/sale/offers"), anyMap(), eq(AllegroListedOffersResponse.class)))
+        when(restApi.fetchWithAuthRetry(eq(AllegroOffersListing.OFFERS), anyMap(), eq(AllegroListedOffersResponse.class)))
                 .thenReturn(objectMapper.readValue(json, AllegroListedOffersResponse.class));
     }
 
-    private String[] endedOffers(long firstId, int size) {
-        String[] ended = new String[size];
+    private String[] activeOffers(long firstId, int size) {
+        String[] offers = new String[size];
         for (int i = 0; i < size; i++) {
-            ended[i] = endedOffer(String.valueOf(firstId + i));
+            offers[i] = activeOffer(String.valueOf(firstId + i));
         }
-        return ended;
+        return offers;
+    }
+
+    private void stubAnyDetails() throws Exception {
+        String json = "{\"id\":\"x\",\"productSet\":[" + product("2000000000015") + "],\"parameters\":[]}";
+        when(restApi.fetchWithAuthRetry(startsWith("/sale/product-offers/"), anyMap(), eq(AllegroProductOfferResponse.class)))
+                .thenReturn(objectMapper.readValue(json, AllegroProductOfferResponse.class));
     }
 
     private void stubList(String... offers) throws Exception {
@@ -92,7 +94,7 @@ class AllegroOffersListingTest {
     }
 
     @Test
-    void requestsTheFirstPageOfFiftyAtOffsetZero() throws Exception {
+    void requestsTheFirstPageOfFiftyActiveOrActivatingOffersAtOffsetZero() throws Exception {
         // given
         stubList();
 
@@ -102,7 +104,8 @@ class AllegroOffersListingTest {
         // then
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, String>> params = ArgumentCaptor.forClass(Map.class);
-        verify(restApi).fetchWithAuthRetry(eq("/sale/offers"), params.capture(), eq(AllegroListedOffersResponse.class));
+        verify(restApi).fetchWithAuthRetry(eq("/sale/offers?publication.status=ACTIVE&publication.status=ACTIVATING"),
+                params.capture(), eq(AllegroListedOffersResponse.class));
         assertEquals(Map.of("limit", "50", "offset", "0"), params.getValue());
     }
 
@@ -125,6 +128,32 @@ class AllegroOffersListingTest {
     void keysAnOfferWithoutSignatureByItsId() throws Exception {
         // given
         stubList(listedOffer("7700000001", null, "Mysz testowa", 4, "49.99", "ACTIVE"));
+        stubDetails("7700000001");
+
+        // when
+        MarketplaceOffersPage page = new AllegroOffersListing(restApi).page(null);
+
+        // then
+        assertEquals("7700000001", page.offers().get(0).sellerOfferKey());
+    }
+
+    @Test
+    void trimsTheSignatureIntoTheKey() throws Exception {
+        // given
+        stubList(listedOffer("7700000001", " BL-1 ", "Mysz testowa", 4, "49.99", "ACTIVE"));
+        stubDetails("7700000001");
+
+        // when
+        MarketplaceOffersPage page = new AllegroOffersListing(restApi).page(null);
+
+        // then
+        assertEquals("BL-1", page.offers().get(0).sellerOfferKey());
+    }
+
+    @Test
+    void keysAnOfferWithABlankSignatureByItsId() throws Exception {
+        // given
+        stubList(listedOffer("7700000001", "  ", "Mysz testowa", 4, "49.99", "ACTIVE"));
         stubDetails("7700000001");
 
         // when
@@ -166,9 +195,9 @@ class AllegroOffersListingTest {
     }
 
     @Test
-    void marksAnInactiveOfferAsNotActive() throws Exception {
+    void marksAnActivatingOfferAsNotActiveYet() throws Exception {
         // given
-        stubList(listedOffer("7700000001", "BL-1", "Mysz testowa", 0, "49.99", "INACTIVE"));
+        stubList(listedOffer("7700000001", "BL-1", "Mysz testowa", 0, "49.99", "ACTIVATING"));
         stubDetails("7700000001");
 
         // when
@@ -179,28 +208,11 @@ class AllegroOffersListingTest {
     }
 
     @Test
-    void skipsEndedOffersWithoutRequestingTheirDetails() throws Exception {
+    void keepsWalkingAfterAPageWhoseOffersWereAllDeleted() throws Exception {
         // given
-        stubList(endedOffer("7700000001"), activeOffer("7700000002"));
-        stubDetails("7700000002");
-
-        // when
-        MarketplaceOffersPage page = new AllegroOffersListing(restApi).page(null);
-
-        // then
-        assertEquals(1, page.offers().size());
-        assertEquals("7700000002", page.offers().get(0).sellerOfferKey());
-        verify(restApi, never()).fetchWithAuthRetry(eq("/sale/product-offers/7700000001"), anyMap(), any());
-    }
-
-    @Test
-    void keepsWalkingAfterAPageOfEndedOffers() throws Exception {
-        // given
-        String[] ended = new String[50];
-        for (int i = 0; i < ended.length; i++) {
-            ended[i] = endedOffer(String.valueOf(7700000100L + i));
-        }
-        stubList(50, 120, ended);
+        stubList(50, 120, activeOffers(7700000100L, 50));
+        when(restApi.fetchWithAuthRetry(startsWith("/sale/product-offers/"), anyMap(), eq(AllegroProductOfferResponse.class)))
+                .thenThrow(new HttpClientException(404, "{\"errors\":[{\"code\":\"OfferNotFoundException\"}]}"));
 
         // when
         MarketplaceOffersPage page = new AllegroOffersListing(restApi).page(null);
@@ -214,11 +226,8 @@ class AllegroOffersListingTest {
     @Test
     void endsAtTheTotalCount() throws Exception {
         // given
-        String[] ended = new String[20];
-        for (int i = 0; i < ended.length; i++) {
-            ended[i] = endedOffer(String.valueOf(7700000200L + i));
-        }
-        stubList(20, 120, ended);
+        stubList(20, 120, activeOffers(7700000200L, 20));
+        stubAnyDetails();
 
         // when
         MarketplaceOffersPage page = new AllegroOffersListing(restApi).page("100");
@@ -231,7 +240,8 @@ class AllegroOffersListingTest {
     @Test
     void continuesWithoutTotalCountWhenThePageIsFull() throws Exception {
         // given
-        stubListWithoutTotalCount(endedOffers(7700000300L, 50));
+        stubListWithoutTotalCount(activeOffers(7700000300L, 50));
+        stubAnyDetails();
 
         // when
         MarketplaceOffersPage page = new AllegroOffersListing(restApi).page(null);
@@ -244,7 +254,8 @@ class AllegroOffersListingTest {
     @Test
     void endsWithoutTotalCountOnAShortPage() throws Exception {
         // given
-        stubListWithoutTotalCount(endedOffers(7700000400L, 20));
+        stubListWithoutTotalCount(activeOffers(7700000400L, 20));
+        stubAnyDetails();
 
         // when
         MarketplaceOffersPage page = new AllegroOffersListing(restApi).page(null);
@@ -280,7 +291,7 @@ class AllegroOffersListingTest {
     @Test
     void throwsRateLimitedOnAThrottledList() {
         // given
-        when(restApi.fetchWithAuthRetry(eq("/sale/offers"), anyMap(), eq(AllegroListedOffersResponse.class)))
+        when(restApi.fetchWithAuthRetry(eq(AllegroOffersListing.OFFERS), anyMap(), eq(AllegroListedOffersResponse.class)))
                 .thenThrow(new HttpClientException(429, "too many requests"));
 
         // when
@@ -352,7 +363,7 @@ class AllegroOffersListingTest {
 
         // then
         InOrder inOrder = inOrder(restApi);
-        inOrder.verify(restApi).fetchWithAuthRetry(eq("/sale/offers"), anyMap(), eq(AllegroListedOffersResponse.class));
+        inOrder.verify(restApi).fetchWithAuthRetry(eq(AllegroOffersListing.OFFERS), anyMap(), eq(AllegroListedOffersResponse.class));
         inOrder.verify(restApi).fetchWithAuthRetry(eq("/sale/product-offers/1"), anyMap(), eq(AllegroProductOfferResponse.class));
         inOrder.verify(restApi).fetchWithAuthRetry(eq("/sale/product-offers/2"), anyMap(), eq(AllegroProductOfferResponse.class));
         inOrder.verify(restApi).fetchWithAuthRetry(eq("/sale/product-offers/3"), anyMap(), eq(AllegroProductOfferResponse.class));

@@ -754,4 +754,18 @@ class AllegroOrdersImportTest {
         assertEquals("7700000001", product.sellerOfferKey());
         assertEquals("  ", product.manufacturerCode());
     }
+
+    @Test
+    void trimsTheSignatureIntoTheKeyButKeepsTheManufacturerCodeRaw() {
+        // given
+        AllegroCheckoutForm.Offer offer = new AllegroCheckoutForm.Offer("7700000001", "Mysz Y",
+                new AllegroCheckoutForm.External(" BL-1 "));
+
+        // when
+        MarketplaceProduct product = productOfOffer(offer);
+
+        // then
+        assertEquals("BL-1", product.sellerOfferKey());
+        assertEquals(" BL-1 ", product.manufacturerCode());
+    }
 }

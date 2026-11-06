@@ -15,13 +15,15 @@ Cash-on-delivery orders (CASH_ON_DELIVERY) are imported — payment happens on d
 
 ## Offer listing
 
-`offers()` lists the seller's offers so the app can link them to catalog products. The offer key
-follows the order-line rule: the trimmed `external.id` (seller signature) when non-blank, otherwise
-the offer id. EANs are read from the offer details, parameter `225693`. Cost: ⌈N/50⌉ list requests
-(page size 50) plus one detail request per non-ended offer, issued sequentially. On HTTP 429 the
-listing signals a rate limit with a fixed 60 s retry delay, because rest-client exposes no response
-headers. Offers with status `ENDED` are skipped without a detail request; offers whose details
-return 404 are skipped.
+`offers()` lists the seller's offers so the app can link them to catalog products. Only offers with
+publication status `ACTIVE` or `ACTIVATING` are listed (the filter is part of the list request, so
+`totalCount` counts exactly the offers checked); ended offers and never-published drafts would only
+produce links that keep the store's own product out of the export. The offer key follows the
+order-line rule: the trimmed `external.id` (seller signature) when non-blank, otherwise the offer id.
+EANs are read from the offer details, parameter `225693`. Cost: ⌈N/50⌉ list requests (page size 50)
+plus one detail request per listed offer, issued sequentially. On HTTP 429 the listing signals a rate
+limit with a fixed 60 s retry delay, because rest-client exposes no response headers. Offers whose
+details return 404 are skipped.
 
 ## Integration configuration (in-dashboard device flow)
 
