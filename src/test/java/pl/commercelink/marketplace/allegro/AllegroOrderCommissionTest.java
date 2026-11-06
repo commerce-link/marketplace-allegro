@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -135,14 +136,55 @@ class AllegroOrderCommissionTest {
     @Test
     void creditEntriesReduceCommissionAndTotalNeverNegative() {
         // given: Allegro refunds commission as a positive amount of the same type
-        billingReturns(entry("SUC", "-10.00", "offer-1"), entry("SUC", "4.00", "offer-1"),
-                entry("SUC", "4.00", "offer-2"));
+        billingReturns(entry("SUC", "-10.00", "offer-1"), entry("SUC", "4.00", "offer-1"));
 
         // when
         List<BigDecimal> commission = forLines(line("offer-1"), line("offer-2"));
 
         // then
         assertEquals(amounts("6.00", "0.00"), commission);
+    }
+
+    @Test
+    void refundOnAnotherLineReducesTheOrderTotal() {
+        // given: the refund names another offer of the order than the charge
+        billingReturns(entry("SUC", "-10.00", "offer-1"), entry("SUC", "4.00", "offer-2"));
+
+        // when
+        List<BigDecimal> commission = forLines(line("offer-1"), line("offer-2"));
+
+        // then: the order's commission is 6.00, not 10.00
+        assertEquals(amounts("6.00", "0.00"), commission);
+    }
+
+    @Test
+    void refundAboveChargeGivesZero() {
+        // given
+        billingReturns(entry("SUC", "4.00", "offer-2"));
+
+        // when
+        List<BigDecimal> commission = forLines(line("offer-1"), line("offer-2"));
+
+        // then
+        assertEquals(amounts("0.00", "0.00"), commission);
+    }
+
+    @Test
+    void pagingStopsAfterTenFullPages() {
+        // given: an endpoint that keeps answering with full pages, whatever the offset
+        List<AllegroBillingEntriesResponse.Entry> fullPage = new ArrayList<>();
+        IntStream.range(0, 99).forEach(i -> fullPage.add(entry("LIS", "-0.01", "offer-1")));
+        fullPage.add(entry("SUC", "-1.00", "offer-1"));
+        when(restApi.fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(), eq(AllegroBillingEntriesResponse.class)))
+                .thenReturn(new AllegroBillingEntriesResponse(fullPage));
+
+        // when
+        List<BigDecimal> commission = forLines(line("offer-1"));
+
+        // then: what was read counts, and the import is not held up
+        assertEquals(amounts("10.00"), commission);
+        verify(restApi, times(10)).fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(),
+                eq(AllegroBillingEntriesResponse.class));
     }
 
     @Test

@@ -25,6 +25,7 @@ class AllegroOrderCommission {
     private static final System.Logger LOGGER = System.getLogger(AllegroOrderCommission.class.getName());
     private static final String ENDPOINT = "/billing/billing-entries";
     private static final int PAGE_SIZE = 100;
+    private static final int MAX_PAGES = 10;
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);
 
     /**
@@ -67,16 +68,29 @@ class AllegroOrderCommission {
         if (entries.isEmpty()) {
             LOGGER.log(System.Logger.Level.INFO, "No Allegro commission yet for checkout form {0}", checkoutFormId);
         }
-        return perLine.stream()
-                .map(value -> value.signum() < 0 ? ZERO : value.setScale(2, RoundingMode.HALF_UP))
-                .toList();
+        if (perLine.stream().anyMatch(value -> value.signum() < 0)) {
+            // a refund on another line than its charge: the order's total counts, never below zero, on the first line
+            BigDecimal total = perLine.stream().reduce(BigDecimal.ZERO, BigDecimal::add).max(BigDecimal.ZERO);
+            List<BigDecimal> clamped = new ArrayList<>(Collections.nCopies(lineItems.size(), ZERO));
+            clamped.set(0, total.setScale(2, RoundingMode.HALF_UP));
+            return clamped;
+        }
+        return perLine.stream().map(value -> value.setScale(2, RoundingMode.HALF_UP)).toList();
     }
 
     private List<AllegroBillingEntriesResponse.Entry> commissionEntries(String checkoutFormId) {
         List<AllegroBillingEntriesResponse.Entry> commission = new ArrayList<>();
         int offset = 0;
+        int pages = 0;
         List<AllegroBillingEntriesResponse.Entry> page;
         do {
+            if (pages++ == MAX_PAGES) {
+                // an order has a handful of entries; endless full pages mean the endpoint ignores the offset
+                LOGGER.log(System.Logger.Level.WARNING,
+                        "Allegro billing for checkout form {0} still full after {1} pages, using what was read",
+                        checkoutFormId, MAX_PAGES);
+                break;
+            }
             AllegroBillingEntriesResponse response = restApi.fetchWithAuthRetry(ENDPOINT,
                     Map.of("order.id", checkoutFormId, "limit", String.valueOf(PAGE_SIZE), "offset", String.valueOf(offset)),
                     AllegroBillingEntriesResponse.class);
