@@ -1,7 +1,8 @@
 # marketplace-allegro
 
 Allegro marketplace integration for the CommerceLink platform. Implements `MarketplaceProvider`
-(`marketplace-api:0.9.1`), discovered via SPI. Scope: import of paid orders only + order
+(`marketplace-api:0.9.1`), discovered via SPI. Scope: import of paid orders only (with
+the Allegro commission of each order, see below) + order
 lifecycle (accept/ship/cancel) + offer export (full create/update/end cycle against
 `/sale/product-offers`) + offer listing for linking offers published by another system
 (`offers()`). Invoices — separate ticket (`updateInvoice` is a no-op).
@@ -31,7 +32,7 @@ Every store (client) uses its **own Allegro application**:
 
 1. Logged in as the store's Allegro seller account, register an application at
    https://apps.developer.allegro.pl (device-flow type; scopes: orders read+write,
-   sale offers read+write). This is a one-time step per store.
+   sale offers read+write, payments write, billing read). This is a one-time step per store.
 2. In the CommerceLink dashboard (store integrations → Allegro) enter the application's
    `clientId` / `clientSecret` and save.
 3. Click **Authorize** on the integration row: a new tab opens with the Allegro
@@ -87,7 +88,30 @@ The provider exposes `MarketplaceProvider.returns()` backed by `AllegroReturns`:
   already rejected or already refunded is left untouched.
 
 Required scopes on the seller's Allegro application: `allegro:api:orders:read`, `allegro:api:orders:write`,
-**`allegro:api:payments:write`**. Stores authorised before the payments scope was added must re-run the device flow.
+**`allegro:api:payments:write`**, **`allegro:api:billing:read`**. A store authorised before a scope was enabled on its
+application (`payments:write` for returns, `billing:read` for the commission) must re-run the device flow.
+
+## Order commission
+
+Each imported order carries the commission Allegro charged for it (`MarketplaceProduct.commission`, summed by the app
+into the order payment's fee). The checkout form has no commission, so `AllegroOrderCommission` reads
+`GET /billing/billing-entries?order.id=<checkout form id>` once, when the order is fetched:
+
+- only commission types count (`SUC`, `FSF`, `ASC`, `BRG`, `BC1`–`BC5`, `USF`, `KAC`); delivery, listing, promotion
+  fees, rebates and account corrections do not;
+- the commission is net of VAT (billing books gross amounts with the VAT rate beside them; the app counts a payment's
+  fee as a net cost and adds VAT itself); a charge is negative and a refund of the same type positive (still marked
+  `DEBIT`), so the sign decides, never `asset`;
+- an offer's commission goes to the first line of that offer, commission tied to no offer to the first line;
+- the commission is not refreshed later (rebates, refunds on returns stay out);
+- any billing failure (e.g. HTTP 403 for a store authorised before `allegro:api:billing:read` was enabled) gives
+  commission 0 with a `WARNING` per order and never blocks the import. Such stores must re-run the device flow;
+- billing is asked one order after another, so one fetch gives it 120 s in total: once they are used up (billing hangs
+  or is slow), the remaining orders of that fetch get commission 0 with a `WARNING`, without asking. A call started
+  just before the end can still hang for the HTTP client's 60 s (up to three calls after a 401), so the fetch usually
+  ends within about three minutes, inside the orders-import message's visibility timeout (300 s);
+- an order's entries are read in pages of 100, at most 10 pages; billing still full after that gives 0, as an endpoint
+  ignoring the offset would repeat the same entries.
 
 Line-item matching falls back to a private `normaliseCode` helper (uppercase, applied only when comparing
 against a legacy order's uppercased key) that deliberately duplicates the app's `UnifiedProductIdentifiers.unifyMfn`
@@ -111,7 +135,7 @@ Smoke test: `mvn test -Dtest=AllegroReturnsSandboxSmokeTest -Dallegro.sandbox.sm
    fictional data is fine, the 2FA SMS code is always 123456. On the seller account fill in
    the company data and sales settings in the Sales Center.
 2. Register an application at https://apps.developer.allegro.pl.allegrosandbox.pl
-   (device flow, scope orders read+write) — credentials are separate from production.
+   (device flow, scopes orders read+write and billing read) — credentials are separate from production.
 3. Seller refresh token — manual OAuth2 device flow (RFC 8628) against
    `BASE=https://allegro.pl.allegrosandbox.pl/auth/oauth` (production: `https://allegro.pl/auth/oauth`):
    `curl -u "$CLIENT_ID:$CLIENT_SECRET" -d "client_id=$CLIENT_ID" "$BASE/device"`, open the
