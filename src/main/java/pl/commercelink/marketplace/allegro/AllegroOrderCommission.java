@@ -35,8 +35,10 @@ class AllegroOrderCommission {
     private static final int PAGE_SIZE = 100;
     private static final int MAX_PAGES = 10;
     /**
-     * Billing time for one fetch. The orders-import message is visible again after 300 s; one more call that hangs
-     * until the HTTP client gives up (60 s) still ends the fetch well within it.
+     * Billing time for one fetch. The orders-import message is visible again after 300 s. The budget is checked
+     * before each call, so a call started just in time can still hang until the HTTP client gives up (60 s, or up to
+     * three such calls when Allegro answers 401 and the token is renewed); the usual worst case of about three
+     * minutes stays within the message's time.
      */
     static final Duration BILLING_BUDGET = Duration.ofSeconds(120);
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);

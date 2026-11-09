@@ -256,6 +256,44 @@ class AllegroOrderCommissionTest {
     }
 
     @Test
+    void budgetUsedUpBetweenPagesGivesZero() {
+        // given: the first page is full, so another one is due, but it came after the whole budget
+        List<AllegroBillingEntriesResponse.Entry> fullPage = new ArrayList<>();
+        IntStream.range(0, 100).forEach(i -> fullPage.add(entry("SUC", "-1.00", "offer-1")));
+        MovingClock clock = new MovingClock();
+        when(restApi.fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(), eq(AllegroBillingEntriesResponse.class)))
+                .thenAnswer(invocation -> {
+                    clock.advance(AllegroOrderCommission.BILLING_BUDGET.plusSeconds(1));
+                    return new AllegroBillingEntriesResponse(fullPage);
+                });
+
+        // when
+        List<BigDecimal> commission = new AllegroOrderCommission(restApi, clock).forLines(FORM_ID, List.of(line("offer-1")));
+
+        // then: the entries of the first page alone would understate the commission, so nothing counts
+        assertEquals(amounts("0.00"), commission);
+        verify(restApi, times(1)).fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(),
+                eq(AllegroBillingEntriesResponse.class));
+    }
+
+    @Test
+    void pageWithoutEntriesAfterFullPageGivesZero() {
+        // given
+        List<AllegroBillingEntriesResponse.Entry> fullPage = new ArrayList<>();
+        IntStream.range(0, 100).forEach(i -> fullPage.add(entry("SUC", "-1.00", "offer-1")));
+        when(restApi.fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(), eq(AllegroBillingEntriesResponse.class)))
+                .thenReturn(new AllegroBillingEntriesResponse(fullPage), new AllegroBillingEntriesResponse(null));
+
+        // when
+        List<BigDecimal> commission = forLines(line("offer-1"));
+
+        // then: the first page alone would understate the commission, so nothing counts
+        assertEquals(amounts("0.00"), commission);
+        verify(restApi, times(2)).fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(),
+                eq(AllegroBillingEntriesResponse.class));
+    }
+
+    @Test
     void emptyEntriesGiveZero() {
         // given
         billingReturns();

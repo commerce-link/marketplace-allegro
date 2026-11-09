@@ -107,8 +107,9 @@ into the order payment's fee). The checkout form has no commission, so `AllegroO
 - any billing failure (e.g. HTTP 403 for a store authorised before `allegro:api:billing:read` was enabled) gives
   commission 0 with a `WARNING` per order and never blocks the import. Such stores must re-run the device flow;
 - billing is asked one order after another, so one fetch gives it 120 s in total: once they are used up (billing hangs
-  or is slow), the remaining orders of that fetch get commission 0 with a `WARNING`, without asking, and the fetch ends
-  well within the orders-import message's visibility timeout (300 s);
+  or is slow), the remaining orders of that fetch get commission 0 with a `WARNING`, without asking. A call started
+  just before the end can still hang for the HTTP client's 60 s (up to three calls after a 401), so the fetch usually
+  ends within about three minutes, inside the orders-import message's visibility timeout (300 s);
 - an order's entries are read in pages of 100, at most 10 pages; billing still full after that gives 0, as an endpoint
   ignoring the offset would repeat the same entries.
 
