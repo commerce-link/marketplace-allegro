@@ -822,6 +822,52 @@ class AllegroOrdersImportTest {
     }
 
     @Test
+    void hangingBillingStopsBeingAskedWithinTheFetch() {
+        // given: billing hangs until the HTTP client gives up, twice as long as the budget in total
+        MovingClock clock = new MovingClock();
+        when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms"), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(paidForm("o-1"), paidForm("o-2"), paidForm("o-3")), 3, 3));
+        when(restApi.fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(), eq(AllegroBillingEntriesResponse.class)))
+                .thenAnswer(invocation -> {
+                    clock.advance(AllegroOrderCommission.BILLING_BUDGET);
+                    throw new RuntimeException("HTTP request failed", new java.net.http.HttpTimeoutException("request timed out"));
+                });
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi, clock);
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then: every order is imported with zero, and the third is not asked after the budget ran out
+        assertEquals(3, orders.size());
+        orders.forEach(order -> assertEquals(new BigDecimal("0.00"), order.products().get(0).commission()));
+        verify(restApi, times(2)).fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(),
+                eq(AllegroBillingEntriesResponse.class));
+    }
+
+    @Test
+    void eachFetchHasItsOwnBillingBudget() {
+        // given: the first fetch uses up the budget
+        MovingClock clock = new MovingClock();
+        when(restApi.fetchWithAuthRetry(eq("/order/checkout-forms"), anyMap(), eq(AllegroCheckoutFormsResponse.class)))
+                .thenReturn(new AllegroCheckoutFormsResponse(List.of(paidForm("o-1")), 1, 1));
+        when(restApi.fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(), eq(AllegroBillingEntriesResponse.class)))
+                .thenAnswer(invocation -> {
+                    clock.advance(AllegroOrderCommission.BILLING_BUDGET.plusSeconds(1));
+                    return billing("o-1", "-1.00");
+                });
+        AllegroOrdersImport ordersImport = new AllegroOrdersImport(restApi, clock);
+        ordersImport.fetchOrders();
+
+        // when
+        List<MarketplaceOrder> orders = ordersImport.fetchOrders();
+
+        // then: the next fetch asks billing again
+        assertEquals(new BigDecimal("0.81"), orders.get(0).products().get(0).commission());
+        verify(restApi, times(2)).fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(),
+                eq(AllegroBillingEntriesResponse.class));
+    }
+
+    @Test
     void billingNotQueriedForSkippedForms() {
         // given
         AllegroCheckoutForm unpaid = new AllegroCheckoutForm("o-2", "READY_FOR_PROCESSING",

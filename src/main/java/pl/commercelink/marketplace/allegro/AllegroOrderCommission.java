@@ -4,6 +4,9 @@ import pl.commercelink.rest.client.RestApiWithRetry;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -20,6 +23,10 @@ import java.util.Set;
  * as the app counts a payment's fee as a net cost; billing books gross amounts with the VAT rate beside them. The
  * commission is read once, when the order is imported; anything going wrong yields zero so
  * the order is still imported.
+ * <p>
+ * One instance serves one fetch of orders. Billing is asked once per order, one after another, and the fetch runs
+ * inside a queue message with a visibility timeout, so billing gets a time budget for the whole fetch: once it is used
+ * up (a hanging or slow billing), the remaining orders get zero without asking.
  */
 class AllegroOrderCommission {
 
@@ -27,6 +34,11 @@ class AllegroOrderCommission {
     private static final String ENDPOINT = "/billing/billing-entries";
     private static final int PAGE_SIZE = 100;
     private static final int MAX_PAGES = 10;
+    /**
+     * Billing time for one fetch. The orders-import message is visible again after 300 s; one more call that hangs
+     * until the HTTP client gives up (60 s) still ends the fetch well within it.
+     */
+    static final Duration BILLING_BUDGET = Duration.ofSeconds(120);
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);
 
     /**
@@ -38,9 +50,17 @@ class AllegroOrderCommission {
             "SUC", "FSF", "ASC", "BRG", "BC1", "BC2", "BC3", "BC4", "BC5", "USF", "KAC");
 
     private final RestApiWithRetry restApi;
+    private final Clock clock;
+    private final Instant deadline;
 
     AllegroOrderCommission(RestApiWithRetry restApi) {
+        this(restApi, Clock.systemUTC());
+    }
+
+    AllegroOrderCommission(RestApiWithRetry restApi, Clock clock) {
         this.restApi = restApi;
+        this.clock = clock;
+        this.deadline = clock.instant().plus(BILLING_BUDGET);
     }
 
     /**
@@ -63,7 +83,7 @@ class AllegroOrderCommission {
             }
         } catch (RuntimeException e) {
             LOGGER.log(System.Logger.Level.WARNING, "Allegro billing unavailable for checkout form {0}: {1}",
-                    checkoutFormId, e.getMessage());
+                    checkoutFormId, describe(e));
             return new ArrayList<>(Collections.nCopies(lineItems.size(), ZERO));
         }
         if (entries.isEmpty()) {
@@ -86,17 +106,23 @@ class AllegroOrderCommission {
         List<AllegroBillingEntriesResponse.Entry> page;
         do {
             if (pages++ == MAX_PAGES) {
-                // an order has a handful of entries; endless full pages mean the endpoint ignores the offset
-                LOGGER.log(System.Logger.Level.WARNING,
-                        "Allegro billing for checkout form {0} still full after {1} pages, using what was read",
-                        checkoutFormId, MAX_PAGES);
-                break;
+                // an order has a handful of entries; endless full pages mean the endpoint ignores the offset, and
+                // the same entries counted again would overstate the commission
+                throw new IllegalStateException("still full after " + MAX_PAGES + " pages");
+            }
+            if (clock.instant().isAfter(deadline)) {
+                throw new IllegalStateException("billing time budget of " + BILLING_BUDGET.toSeconds()
+                        + " s for this fetch used up, not asked");
             }
             AllegroBillingEntriesResponse response = restApi.fetchWithAuthRetry(ENDPOINT,
                     Map.of("order.id", checkoutFormId, "limit", String.valueOf(PAGE_SIZE), "offset", String.valueOf(offset)),
                     AllegroBillingEntriesResponse.class);
-            page = response == null || response.billingEntries() == null ? List.of() : response.billingEntries();
+            if (response == null || response.billingEntries() == null) {
+                throw new IllegalStateException("billing answered without entries");
+            }
+            page = response.billingEntries();
             page.stream()
+                    .filter(Objects::nonNull)
                     .filter(entry -> entry.type() != null && COMMISSION_TYPES.contains(entry.type().id()))
                     .filter(entry -> entry.order() == null || checkoutFormId.equals(entry.order().id()))
                     .filter(entry -> entry.value() != null && entry.value().amount() != null)
@@ -118,6 +144,12 @@ class AllegroOrderCommission {
         }
         BigDecimal divisor = BigDecimal.ONE.add(new BigDecimal(entry.tax().percentage()).movePointLeft(2));
         return gross.divide(divisor, 10, RoundingMode.HALF_UP);
+    }
+
+    /** The message with its cause: the HTTP client wraps a timeout or a refused connection in "HTTP request failed". */
+    private static String describe(RuntimeException e) {
+        Throwable cause = e.getCause();
+        return cause == null || cause == e ? e.getMessage() : e.getMessage() + " (" + cause + ")";
     }
 
     private static int lineOf(AllegroBillingEntriesResponse.Entry entry, List<AllegroCheckoutForm.LineItem> lineItems) {

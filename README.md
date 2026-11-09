@@ -32,7 +32,7 @@ Every store (client) uses its **own Allegro application**:
 
 1. Logged in as the store's Allegro seller account, register an application at
    https://apps.developer.allegro.pl (device-flow type; scopes: orders read+write,
-   sale offers read+write). This is a one-time step per store.
+   sale offers read+write, payments write, billing read). This is a one-time step per store.
 2. In the CommerceLink dashboard (store integrations → Allegro) enter the application's
    `clientId` / `clientSecret` and save.
 3. Click **Authorize** on the integration row: a new tab opens with the Allegro
@@ -88,8 +88,8 @@ The provider exposes `MarketplaceProvider.returns()` backed by `AllegroReturns`:
   already rejected or already refunded is left untouched.
 
 Required scopes on the seller's Allegro application: `allegro:api:orders:read`, `allegro:api:orders:write`,
-**`allegro:api:payments:write`**, **`allegro:api:billing:read`**. Stores authorised before the payments scope was added
-must re-run the device flow.
+**`allegro:api:payments:write`**, **`allegro:api:billing:read`**. A store authorised before a scope was enabled on its
+application (`payments:write` for returns, `billing:read` for the commission) must re-run the device flow.
 
 ## Order commission
 
@@ -105,7 +105,12 @@ into the order payment's fee). The checkout form has no commission, so `AllegroO
 - an offer's commission goes to the first line of that offer, commission tied to no offer to the first line;
 - the commission is not refreshed later (rebates, refunds on returns stay out);
 - any billing failure (e.g. HTTP 403 for a store authorised before `allegro:api:billing:read` was enabled) gives
-  commission 0 with a `WARNING` per order and never blocks the import. Such stores must re-run the device flow.
+  commission 0 with a `WARNING` per order and never blocks the import. Such stores must re-run the device flow;
+- billing is asked one order after another, so one fetch gives it 120 s in total: once they are used up (billing hangs
+  or is slow), the remaining orders of that fetch get commission 0 with a `WARNING`, without asking, and the fetch ends
+  well within the orders-import message's visibility timeout (300 s);
+- an order's entries are read in pages of 100, at most 10 pages; billing still full after that gives 0, as an endpoint
+  ignoring the offset would repeat the same entries.
 
 Line-item matching falls back to a private `normaliseCode` helper (uppercase, applied only when comparing
 against a legacy order's uppercased key) that deliberately duplicates the app's `UnifiedProductIdentifiers.unifyMfn`

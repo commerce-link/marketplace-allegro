@@ -9,6 +9,7 @@ import pl.commercelink.rest.client.RestApiWithRetry;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -57,7 +58,7 @@ class AllegroOrderCommissionTest {
     }
 
     private static List<BigDecimal> amounts(String... values) {
-        return java.util.Arrays.stream(values).map(BigDecimal::new).toList();
+        return Arrays.stream(values).map(BigDecimal::new).toList();
     }
 
     @Test
@@ -175,7 +176,7 @@ class AllegroOrderCommissionTest {
     }
 
     @Test
-    void pagingStopsAfterTenFullPages() {
+    void pagesThatNeverEndGiveZero() {
         // given: an endpoint that keeps answering with full pages, whatever the offset
         List<AllegroBillingEntriesResponse.Entry> fullPage = new ArrayList<>();
         IntStream.range(0, 99).forEach(i -> fullPage.add(entry("LIS", "-0.01", "offer-1")));
@@ -186,8 +187,8 @@ class AllegroOrderCommissionTest {
         // when
         List<BigDecimal> commission = forLines(line("offer-1"));
 
-        // then: what was read counts, and the import is not held up
-        assertEquals(amounts("10.00"), commission);
+        // then: the same entries on every page would count ten times, so nothing counts, and the import is not held up
+        assertEquals(amounts("0.00"), commission);
         verify(restApi, times(10)).fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(),
                 eq(AllegroBillingEntriesResponse.class));
     }
@@ -217,6 +218,41 @@ class AllegroOrderCommissionTest {
 
         // then
         assertEquals(amounts("0.00", "0.00"), commission);
+    }
+
+    @Test
+    void emptyEntryInPageIsSkipped() {
+        // given
+        when(restApi.fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(), eq(AllegroBillingEntriesResponse.class)))
+                .thenReturn(new AllegroBillingEntriesResponse(Arrays.asList(null, entry("SUC", "-2.00", "offer-1"))));
+
+        // when
+        List<BigDecimal> commission = forLines(line("offer-1"));
+
+        // then
+        assertEquals(amounts("2.00"), commission);
+    }
+
+    @Test
+    void billingIsNotAskedOnceTheBudgetIsUsedUp() {
+        // given: the first order's billing answers only after the whole budget
+        MovingClock clock = new MovingClock();
+        when(restApi.fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(), eq(AllegroBillingEntriesResponse.class)))
+                .thenAnswer(invocation -> {
+                    clock.advance(AllegroOrderCommission.BILLING_BUDGET.plusSeconds(1));
+                    return new AllegroBillingEntriesResponse(List.of(entry("SUC", "-3.00", "offer-1")));
+                });
+        AllegroOrderCommission commission = new AllegroOrderCommission(restApi, clock);
+
+        // when
+        List<BigDecimal> first = commission.forLines(FORM_ID, List.of(line("offer-1")));
+        List<BigDecimal> second = commission.forLines(FORM_ID, List.of(line("offer-1")));
+
+        // then: the answer that came still counts; the next order gets zero without a call
+        assertEquals(amounts("3.00"), first);
+        assertEquals(amounts("0.00"), second);
+        verify(restApi, times(1)).fetchWithAuthRetry(eq("/billing/billing-entries"), anyMap(),
+                eq(AllegroBillingEntriesResponse.class));
     }
 
     @Test
